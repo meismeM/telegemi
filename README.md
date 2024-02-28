@@ -1,4 +1,4 @@
-# tg-gemini-bot
+# telegemi
 
 The tg-gemini-bot let's you use Google Gemini services right on your personal Telegram bot.
 
