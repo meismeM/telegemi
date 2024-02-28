@@ -69,13 +69,14 @@ class ChatConversation:
                 result = f"Something went wrong!\n{repr(e)}\n\nThe content you entered may be inappropriate, please modify it and try again"
         return result
 
-def send_photo(update, context):
+    def send_photo(update, context):
     user = update.effective_user
     prompt = "A beautiful landscape with a river and mountains"  # Replace with your desired prompt
     response = model.generate_image(prompt)
     photo_file = BytesIO(response.image)
     context.bot.send_photo(chat_id=user.id, photo=photo_file)
     return ConversationHandler.END
+
 
     @property
     def history(self):
