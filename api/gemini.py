@@ -69,21 +69,6 @@ class ChatConversation:
                 result = f"Something went wrong!\n{repr(e)}\n\nThe content you entered may be inappropriate, please modify it and try again"
         return result
 
-    def send_photo(self, prompt: str, caption: str = None) -> str:
-    """send photo"""
-    if prompt.startswith("/new"):
-        self.init()
-        result = "We're having a fresh chat."
-    elif prompt.startswith("generate image"):
-        result = self.generate_image(prompt[len("generate image"):])
-    else:
-        try:
-            response = self.chat.send_photo(prompt, caption=caption)
-            result = response.text
-        except Exception as e:
-            result = f"Something went wrong!\n{repr(e)}\n\nThe content you entered may be inappropriate, please modify it and try again"
-    return result
-
     @property
     def history(self):
         return self.chat.history
