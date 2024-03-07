@@ -38,11 +38,11 @@ class Update:
     def __init__(self, update: Dict) -> None:
         self.update = update
         self.from_id = update["message"]["from"]["id"]
-        self.chat_id = update["message"]["chat"]["id"]
         self.type = self._type()
         self.text = self._text()
         self.photo_caption = self._photo_caption()
         self.file_id = self._file_id()
+        #self.user_name = update["message"]["from"]["username"]
         self.user_name = update["message"]["from"].get("username", f" [UnnamedUser](tg://openmessage?user_id={self.from_id})")
         self.message_id: int = update["message"]["message_id"]
 
