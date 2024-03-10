@@ -11,8 +11,8 @@ admin_auch_info = "You are not the administrator or your administrator ID is set
 debug_mode_info = "Debug mode is not enabled!"
 
 def help():
-    help_text = "You can send me text or pictures. When sending pictures, please include the text in the same message."
-    command_list = "/new Start a new chat\n/get_my_info Get personal information\n/get_allowed_users Get the list of users allowed to use robots (available only to admin)\n/list_models list_models (available only to admin)\n/get_api_key (available only to admin)"
+    help_text = "Welcome to Gemini 1.5 Pro AI, your intelligent companion powered by Google's cutting-edge technology. Interact seamlessly through text or images, and watch as this Telegram bot responds with insightful answers and engaging conversations. Unlock the power of AI-driven communication with Gemini 1.5 Pro AI – where every message is an opportunity for a smarter exchange."
+    command_list = "/new - Start a new chat\n/get_my_info - Get personal information\n/get_allowed_users - Get the list of users allowed to use robots (available only to admin)\n/list_models - List available models (available only to admin)\n/get_api_key - Get API key (available only to admin)"
     result = f"{help_text}\n\n{command_list}"
     return result
 
