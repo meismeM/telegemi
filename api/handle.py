@@ -79,7 +79,7 @@ def handle_message(update_data):
         send_log(log)
         
         # Send to the channel without user ID
-        channel_message = f"Photo received: {photo_url}\nCaption: {update.photo_caption}\nReply: {response_text}"
+        channel_message = f"Photo received:\nCaption: {update.photo_caption}\nReply: {response_text}"
         send_message_to_channel(channel_message)
 
     else:
