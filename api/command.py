@@ -11,8 +11,7 @@ admin_auch_info = "You are not the administrator or your administrator ID is set
 debug_mode_info = "Debug mode is not enabled!"
 
 def help():
-    help_text = "Welcome to Gemini 1.5 Pro AI! Interact through text or images and experience insightful answers. Unlock the power of AI-driven communication – every message is a chance for a smarter exchange. Send text or image! And most importantly join the channels:  [Channel 1](https://t.me/telegemin) 
-and [Channel 2](https://t.me/grade9to12ethiopia).
+    help_text = "Welcome to Gemini 1.5 Pro AI! Interact through text or images and experience insightful answers. Unlock the power of AI-driven communication – every message is a chance for a smarter exchange. Send text or image! And most importantly join the channels:  [Channel 1](https://t.me/telegemin) and [Channel 2](https://t.me/grade9to12ethiopia).
 "
     command_list = "/new - Start a new chat" #\n/get_my_info - Get personal information\n/get_allowed_users - Get the list of users allowed to use robots (available only to admin)\n/list_models - List available models (available only to admin)\n/get_api_key - Get API key (available only to admin)"
     result = f"{help_text}\n\n{command_list}"
