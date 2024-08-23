@@ -18,7 +18,11 @@ from .telegram import Update, send_message, send_imageMessage, send_message_with
 from .printLog import send_log, send_image_log
 from .config import CHANNEL_ID, ADMIN_ID
 
-CHANNEL_ID = "-1002238005293"  
+CHANNEL_ID = "-1002238005293"  # Replace with your actual channel ID
+ADMIN_CHAT_ID = "@methyops"     # Replace with your admin's chat ID
+MESSAGE_ID_TO_FORWARD = 123      # Replace with the message ID you got
+
+forward_message(CHANNEL_ID, ADMIN_CHAT_ID, MESSAGE_ID_TO_FORWARD)  
 
 chat_manager = ChatManager()
 
