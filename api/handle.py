@@ -18,6 +18,8 @@ from .telegram import Update, send_message, send_imageMessage, send_message_with
 from .printLog import send_log, send_image_log
 from .config import CHANNEL_ID, ADMIN_ID
 
+CHANNEL_ID = "-1002238005293"  
+
 chat_manager = ChatManager()
 
 def handle_message(update_data):
