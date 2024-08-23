@@ -93,24 +93,32 @@ def handle_message(update_data):
         )
 
     elif "callback_query" in update_data:
-        callback_data = update_data["callback_query"]["data"]
+    callback_data = update_data["callback_query"]["data"]
+    
+    # Log the received callback data
+    send_log(f"Callback data received: {callback_data}")
+    
+    # Check the callback data and extract relevant information
+    if callback_data.startswith("post_"):
+        action_type, message_id = callback_data.split("_")[1:]
         
-        # Check the callback data and extract relevant information
-        if callback_data.startswith("post_"):
-            action_type, message_id = callback_data.split("_")[1:]
-            
-            # Log what is happening
-            send_log(f"Admin approved a {action_type} with message_id: {message_id}")
-            
-            # Get the original message text from the admin's message
-            original_message = update_data["callback_query"]["message"]["text"]
-            
-            # Post to the channel
+        # Log the action being taken
+        send_log(f"Admin approved a {action_type} with message_id: {message_id}")
+        
+        # Get the original message text from the admin's message
+        original_message = update_data["callback_query"]["message"]["text"]
+        
+        # Attempt to post to the channel and log the action
+        try:
             send_message_to_channel(f"{original_message}\n\n(Approved by Admin)")
-            
+            send_log("Message posted to the channel successfully.")
             # Notify the admin of successful posting
             send_message(ADMIN_ID, "The message has been posted to the channel successfully.")
+        except Exception as e:
+            send_log(f"Failed to post the message to the channel: {str(e)}")
 
+            
+ 
     else:
         send_message(update.from_id, "The content you sent is not recognized\n\n/help")
         log = f"@{update.user_name} id:`{update.from_id}`Sent unrecognized content"
