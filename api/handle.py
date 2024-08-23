@@ -11,17 +11,14 @@ As for images, in Gemini pro, they're context-free, so you can handle
 them pretty straight-up without much fuss.
 """
 
-from .auth import is_authorized
+from .auth import is_authorized, is_admin
 from .command import excute_command
 from .context import ChatManager, ImageChatManger
-from .telegram import Update, send_message
+from .telegram import Update, send_message, send_imageMessage, send_message_with_inline_keyboard, forward_message
 from .printLog import send_log, send_image_log
+from .config import CHANNEL_ID, ADMIN_ID
 
 chat_manager = ChatManager()
-
-def send_message_to_channel(message):
-    channel_id = "@your_channel_username"  # Replace with your channel ID or username
-    send_message(channel_id, message)
 
 def handle_message(update_data):
     update = Update(update_data)
