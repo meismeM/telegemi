@@ -34,6 +34,33 @@ def send_imageMessage(chat_id, text, imageID):
     return r
 
 
+def send_message_with_inline_keyboard(chat_id, text, keyboard, **kwargs):
+    """send text message with inline keyboard"""
+    payload = {
+        "chat_id": chat_id,
+        "text": escape(text),
+        "parse_mode": "MarkdownV2",
+        "reply_markup": {"inline_keyboard": keyboard},
+        **kwargs,
+    }
+    r = requests.post(f"{TELEGRAM_API}/sendMessage", json=payload)
+    print(f"Sent message with keyboard: {text} to {chat_id}")
+    return r
+
+def forward_message(chat_id, from_chat_id, message_id):
+    """forward message to channel"""
+    payload = {
+        "chat_id": chat_id,
+        "from_chat_id": from_chat_id,
+        "message_id": message_id,
+    }
+    r = requests.post(f"{TELEGRAM_API}/forwardMessage", json=payload)
+    print(f"Forwarded message {message_id} from {from_chat_id} to {chat_id}")
+    return r
+
+
+
+
 class Update:
     def __init__(self, update: Dict) -> None:
         self.update = update
