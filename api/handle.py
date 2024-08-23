@@ -8,7 +8,7 @@ from .config import ADMIN_ID  # Import ADMIN_ID from the config file
 chat_manager = ChatManager()
 
 def send_message_to_channel(message):
-    channel_id = "@your_channel_username"  # Replace with your channel ID or username
+    channel_id = "@telegemin"  # Replace with your channel ID or username
     send_message(channel_id, message)
 
 def answer_callback_query(callback_query_id, text=None, show_alert=False):
