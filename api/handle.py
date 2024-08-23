@@ -14,8 +14,9 @@ them pretty straight-up without much fuss.
 from .auth import is_authorized
 from .command import excute_command
 from .context import ChatManager, ImageChatManger
-from .telegram import Update, send_message
+from .telegram import Update, send_message, send_message_with_inline_keyboard
 from .printLog import send_log, send_image_log
+from .config import ADMIN_ID  # Import ADMIN_ID from the config file
 
 chat_manager = ChatManager()
 
@@ -37,9 +38,13 @@ def handle_message(update_data):
             log = f"@{update.user_name} id:`{update.from_id}`The command sent is:\n{update.text}\nThe reply content is:\n{response_text}"
             send_log(log)
             
-            # Send to the channel without user ID
+            # Send to the channel without user ID after admin approval
             channel_message = f"A command was sent:\n{update.text}\nThe reply content is:\n{response_text}"
-            send_message_to_channel(channel_message)
+            send_message_with_inline_keyboard(
+                ADMIN_ID, 
+                f"Command from @{update.user_name} (ID: `{update.from_id}`)\n\n{channel_message}",
+                [[{"text": "Post to Channel", "callback_data": f"post_{update.message_id}"}]]
+            )
 
     elif not authorized:
         send_message(update.from_id, f"You are not allowed to use this bot.\nID:`{update.from_id}`")
@@ -49,25 +54,27 @@ def handle_message(update_data):
 
     elif update.type == "text":
         chat = chat_manager.get_chat(update.from_id)
-        anwser = chat.send_message(update.text)
+        answer = chat.send_message(update.text)
         extra_text = (
             "\n\nType /new to kick off a new chat." if chat.history_length > 5 else ""
         )
-        response_text = f"{anwser}{extra_text}"
+        response_text = f"{answer}{extra_text}"
         send_message(update.from_id, response_text)
 
         dialogueLogarithm = int(chat.history_length / 2)
         log = f"@{update.user_name} id:`{update.from_id}`The content sent is:\n{update.text}\nThe reply content is:\n{response_text}\nThe logarithm of historical conversations is:{dialogueLogarithm}"
         send_log(log)
         
-        # Send to the channel without user ID
-        channel_message = f"Text received: {update.text}\nReply: {response_text}"
-        send_message_to_channel(channel_message)
+        # Send to the admin with inline keyboard for approval
+        send_message_with_inline_keyboard(
+            ADMIN_ID, 
+            f"Message from @{update.user_name} (ID: `{update.from_id}`)\n\nMessage: {update.text}\nReply: {response_text}",
+            [[{"text": "Post to Channel", "callback_data": f"post_{update.message_id}"}]]
+        )
 
     elif update.type == "photo":
         chat = ImageChatManger(update.photo_caption, update.file_id)
         response_text = chat.send_image()
-        print(f"update.message_id {update.message_id}")
         send_message(
             update.from_id, response_text, reply_to_message_id=update.message_id
         )
@@ -78,15 +85,23 @@ def handle_message(update_data):
         send_image_log("", imageID)
         send_log(log)
         
-        # Send to the channel without user ID
-        channel_message = f"Photo received: {photo_url}\nCaption: {update.photo_caption}\nReply: {response_text}"
-        send_message_to_channel(channel_message)
+        # Send to the admin with inline keyboard for approval
+        send_message_with_inline_keyboard(
+            ADMIN_ID, 
+            f"Photo from @{update.user_name} (ID: `{update.from_id}`)\n\nCaption: {update.photo_caption}\nReply: {response_text}",
+            [[{"text": "Post to Channel", "callback_data": f"post_{update.message_id}"}]]
+        )
+
+    elif "callback_query" in update_data:
+        callback_data = update_data["callback_query"]["data"]
+        if callback_data.startswith("post_"):
+            # When admin approves, the content is posted to the channel
+            original_message = update_data["callback_query"]["message"]["text"]
+            channel_message = f"Approved for posting:\n\n{original_message}"
+            send_message_to_channel(channel_message)
 
     else:
         send_message(update.from_id, "The content you sent is not recognized\n\n/help")
         log = f"@{update.user_name} id:`{update.from_id}`Sent unrecognized content"
         send_log(log)
-        
-        # Send to the channel without user ID
-        channel_message = "Unrecognized content was sent."
-        send_message_to_channel(channel_message)
+        send_message_to_channel("Unrecognized content was sent.")
