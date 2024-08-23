@@ -89,26 +89,29 @@ def handle_message(update_data):
         )
 
     elif "callback_query" in update_data:
-        callback_query_id = update_data["callback_query"]["id"]
-        callback_data = update_data["callback_query"]["data"]
+    callback_query_id = update_data["callback_query"]["id"]
+    callback_data = update_data["callback_query"]["data"]
 
-        # Acknowledge the callback query
-        answer_callback_query(callback_query_id, "Processing...")
+    send_log(f"Callback query received: {callback_data} from user ID: {update_data['callback_query']['from']['id']}")
 
-        # Handle the callback action
-        if callback_data.startswith("post_"):
-            action_type, message_id = callback_data.split("_")[1:]
+    # Acknowledge the callback query
+    answer_callback_query(callback_query_id, "Processing...")
 
-            send_log(f"Admin approved a {action_type} with message_id: {message_id}")
+    # Handle the callback action
+    if callback_data.startswith("post_"):
+        action_type, message_id = callback_data.split("_")[1:]
 
-            # Get the original message text from the admin's message
-            original_message = update_data["callback_query"]["message"]["text"]
+        send_log(f"Admin approved a {action_type} with message_id: {message_id}")
 
-            # Post to the channel
-            send_message_to_channel(f"{original_message}\n\n(Approved by Admin)")
+        # Get the original message text from the admin's message
+        original_message = update_data["callback_query"]["message"]["text"]
 
-            # Notify the admin of successful posting
-            send_message(ADMIN_ID, "The message has been posted to the channel successfully.")
+        # Post to the channel
+        send_message_to_channel(f"{original_message}\n\n(Approved by Admin)")
+
+        # Notify the admin of successful posting
+        send_message(ADMIN_ID, "The message has been posted to the channel successfully.")
+
 
     else:
         send_message(update.from_id, "The content you sent is not recognized\n\n/help")
