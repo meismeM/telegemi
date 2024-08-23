@@ -12,12 +12,13 @@ def send_message_to_channel(message):
     send_message(channel_id, message)
 
 def answer_callback_query(callback_query_id, text=None, show_alert=False):
-    # Sends acknowledgment of callback query
+    send_log(f"Acknowledging callback query with ID: {callback_query_id}")
     send_message("answerCallbackQuery", {
         "callback_query_id": callback_query_id,
         "text": text,
         "show_alert": show_alert
     })
+
 
 def handle_message(update_data):
     update = Update(update_data)
