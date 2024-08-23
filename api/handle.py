@@ -8,17 +8,17 @@ from .config import ADMIN_ID  # Import ADMIN_ID from the config file
 chat_manager = ChatManager()
 
 def send_message_to_channel(message):
-    channel_id = "@telegemin"  # Replace with your channel ID or username
+    channel_id = "@your_channel_username"  # Replace with your channel ID or username
     send_message(channel_id, message)
 
 def answer_callback_query(callback_query_id, text=None, show_alert=False):
+    # Sends acknowledgment of callback query
     send_log(f"Acknowledging callback query with ID: {callback_query_id}")
     send_message("answerCallbackQuery", {
         "callback_query_id": callback_query_id,
         "text": text,
         "show_alert": show_alert
     })
-
 
 def handle_message(update_data):
     update = Update(update_data)
@@ -89,29 +89,28 @@ def handle_message(update_data):
         )
 
     elif "callback_query" in update_data:
-    callback_query_id = update_data["callback_query"]["id"]
-    callback_data = update_data["callback_query"]["data"]
+        callback_query_id = update_data["callback_query"]["id"]
+        callback_data = update_data["callback_query"]["data"]
 
-    send_log(f"Callback query received: {callback_data} from user ID: {update_data['callback_query']['from']['id']}")
+        send_log(f"Callback query received: {callback_data} from user ID: {update_data['callback_query']['from']['id']}")
 
-    # Acknowledge the callback query
-    answer_callback_query(callback_query_id, "Processing...")
+        # Acknowledge the callback query
+        answer_callback_query(callback_query_id, "Processing...")
 
-    # Handle the callback action
-    if callback_data.startswith("post_"):
-        action_type, message_id = callback_data.split("_")[1:]
+        # Handle the callback action
+        if callback_data.startswith("post_"):
+            action_type, message_id = callback_data.split("_")[1:]
 
-        send_log(f"Admin approved a {action_type} with message_id: {message_id}")
+            send_log(f"Admin approved a {action_type} with message_id: {message_id}")
 
-        # Get the original message text from the admin's message
-        original_message = update_data["callback_query"]["message"]["text"]
+            # Get the original message text from the admin's message
+            original_message = update_data["callback_query"]["message"]["text"]
 
-        # Post to the channel
-        send_message_to_channel(f"{original_message}\n\n(Approved by Admin)")
+            # Post to the channel
+            send_message_to_channel(f"{original_message}\n\n(Approved by Admin)")
 
-        # Notify the admin of successful posting
-        send_message(ADMIN_ID, "The message has been posted to the channel successfully.")
-
+            # Notify the admin of successful posting
+            send_message(ADMIN_ID, "The message has been posted to the channel successfully.")
 
     else:
         send_message(update.from_id, "The content you sent is not recognized\n\n/help")
