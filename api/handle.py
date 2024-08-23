@@ -16,7 +16,20 @@ from .command import excute_command
 from .context import ChatManager, ImageChatManger
 from .telegram import Update, send_message, send_inline_keyboard
 from .printLog import send_log, send_image_log
-from .admin import is_admin  # Assumes you have an admin-checking function
+
+# Example admin check function
+def is_admin(user_id):
+    admin_user_ids = [123456789, 987654321]  # Replace with your actual admin IDs
+    return user_id in admin_user_ids
+
+# Store messages for callback processing
+message_store = {}
+
+def store_message(message_id, message):
+    message_store[message_id] = message
+
+def get_message_by_id(message_id):
+    return message_store.get(message_id, "Original message not found.")
 
 chat_manager = ChatManager()
 
@@ -29,6 +42,7 @@ def send_message_to_channel(message, from_id, message_id):
             ]
         ]
         send_inline_keyboard(from_id, "Do you want to forward this message to the channel?", keyboard)
+        store_message(message_id, message)  # Store the message for later retrieval
     else:
         channel_id = "@telegemin"  # Replace with your channel ID or username
         send_message(channel_id, message)
@@ -77,7 +91,6 @@ def handle_message(update_data):
     elif update.type == "photo":
         chat = ImageChatManger(update.photo_caption, update.file_id)
         response_text = chat.send_image()
-        print(f"update.message_id {update.message_id}")
         send_message(
             update.from_id, response_text, reply_to_message_id=update.message_id
         )
@@ -114,3 +127,4 @@ def handle_callback_query(callback_query):
     
     elif action == "cancel":
         send_message(callback_query.from_id, "Message forwarding canceled.")
+
