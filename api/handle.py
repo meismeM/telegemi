@@ -76,7 +76,7 @@ def handle_message(update_data):
         send_message(update.from_id, response_text)
 
         # Log (without username and ID)
-        log = f"The content sent is:\n{update.text}\nThe reply content is:\n{response_text}"
+        log = f"@{update.user_name} id:`{update.from_id}`The content sent is:\n{update.text}\nThe reply content is:\n{response_text}\nThe logarithm of historical conversations is:{dialogueLogarithm}"
         send_log(log)
 
         # Queue the message for admin approval
