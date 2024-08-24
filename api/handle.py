@@ -1,7 +1,7 @@
 from .auth import is_authorized, is_admin
 from .command import excute_command
 from .context import ChatManager, ImageChatManger
-from .telegram import Update, send_message, send_imageMessage, forward_message
+from .telegram import Update, send_message, forward_message
 from .printLog import send_log, send_image_log
 from .config import CHANNEL_ID, ADMIN_ID
 
@@ -12,12 +12,12 @@ def handle_message(update_data):
     update = Update(update_data)
     authorized = is_authorized(update.from_id, update.user_name)
 
-    # Log the event
-    send_log(f"event received\n@{update.user_name} id:`{update.from_id}`\nThe content sent is:\n{update.text}\n```json\n{update_data}```")
+    # Log the event (without username and ID)
+    send_log(f"event received\nThe content sent is:\n{update.text}\n```json\n{update_data}```")
 
     if not authorized:
-        send_message(update.from_id, f"You are not allowed to use this bot.\nID:`{update.from_id}`")
-        log = f"@{update.user_name} id:`{update.from_id}`No rights to use, The content sent is:\n{update.text}"
+        send_message(update.from_id, "You are not allowed to use this bot.")  # No ID in message
+        log = f"No rights to use, The content sent is:\n{update.text}"
         send_log(log)
         return
 
@@ -41,7 +41,7 @@ def handle_message(update_data):
                     send_message(CHANNEL_ID, approved_message["response_text"])
                     send_message(approved_message["from_id"], "Your image and response have been approved and forwarded to the channel!")
                 else:  # It's a text message
-                    forward_message(CHANNEL_ID, approved_message["from_id"], message_id)
+                    send_message_to_channel(approved_message["text"], approved_message["response_text"]) # Use the new function
                     send_message(approved_message["from_id"], "Your message has been approved and forwarded to the channel!")
 
             except Exception as e:
@@ -60,40 +60,37 @@ def handle_message(update_data):
 
             denied_message = pending_approvals.pop(message_id)
             send_message(denied_message["from_id"], "Your message has been denied.")
-            
+
         else:  # Handle other commands
             response_text = excute_command(update.from_id, update.text)
             if response_text != "":
                 send_message(update.from_id, response_text)
-                log = f"@{update.user_name} id:`{update.from_id}`The command sent is:\n{update.text}\nThe reply content is:\n{response_text}"
+                log = f"The command sent is:\n{update.text}\nThe reply content is:\n{response_text}"  # No username/ID
                 send_log(log)
 
     elif update.type == "text":
         chat = chat_manager.get_chat(update.from_id)
         answer = chat.send_message(update.text)
-        extra_text = (
-            "\n\nType /new to kick off a new chat." if chat.history_length > 5 else ""
-        )
+        extra_text = "\n\nType /new to kick off a new chat." if chat.history_length > 5 else ""
         response_text = f"{answer}{extra_text}"
         send_message(update.from_id, response_text)
 
-        dialogueLogarithm = int(chat.history_length / 2)
-        log = f"@{update.user_name} id:`{update.from_id}`The content sent is:\n{update.text}\nThe reply content is:\n{response_text}\nThe logarithm of historical conversations is:{dialogueLogarithm}"
+        # Log (without username and ID)
+        log = f"The content sent is:\n{update.text}\nThe reply content is:\n{response_text}"
         send_log(log)
 
         # Queue the message for admin approval
         message_id = update.message_id
         pending_approvals[message_id] = {
             "from_id": update.from_id,
-            "user_name": update.user_name,
             "text": update.text,
             "response_text": response_text
         }
-        
-        # Notify the admin
+
+        # Notify the admin (with formatted message and without username)
         send_message(
-            ADMIN_ID, 
-            f"New message from @{update.user_name} (ID: `{update.from_id}`):\n\nMessage: {update.text}\nReply: {response_text}\n\nTo approve, reply with /approve {message_id}\nTo deny, reply with /deny {message_id}"
+            ADMIN_ID,
+            f"New message:\n\nMessage: {update.text}\nReply: {response_text}\n\nTo approve, reply with /approve {message_id}\nTo deny, reply with /deny {message_id}"
         )
 
     elif update.type == "photo":
@@ -103,7 +100,7 @@ def handle_message(update_data):
 
         photo_url = chat.tel_photo_url()
         imageID = update.file_id
-        log = f"@{update.user_name} id:`{update.from_id}`[photo]({photo_url}), The accompanying message is:\n{update.photo_caption}\nThe reply content is:\n{response_text}"
+        log = f"[photo]({photo_url}), The accompanying message is:\n{update.photo_caption}\nThe reply content is:\n{response_text}"  # No username/ID
         send_image_log("", imageID)
         send_log(log)
 
@@ -111,15 +108,22 @@ def handle_message(update_data):
         message_id = update.message_id
         pending_approvals[message_id] = {
             "from_id": update.from_id,
-            "user_name": update.user_name,
             "photo_caption": update.photo_caption,
             "response_text": response_text,
             "photo_url": photo_url,
             "imageID": imageID
         }
 
-        # Notify the admin
+        # Notify the admin (without username)
         send_message(
-            ADMIN_ID, 
-            f"New photo from @{update.user_name} (ID: `{update.from_id}`):\n\nCaption: {update.photo_caption}\nReply: {response_text}\n\nTo approve, reply with /approve {message_id}\nTo deny, reply with /deny {message_id}"
+            ADMIN_ID,
+            f"New photo:\n\nCaption: {update.photo_caption}\nReply: {response_text}\n\nTo approve, reply with /approve {message_id}\nTo deny, reply with /deny {message_id}"
         )
+
+
+def send_message_to_channel(message, response):
+    try:
+        send_message(CHANNEL_ID, f"Message: {message}\nReply: {response}")  # Formatted message
+        print(f"Message successfully sent to the channel: {CHANNEL_ID}")
+    except Exception as e:
+        print(f"Error sending message to channel: {e}")
