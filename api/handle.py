@@ -43,7 +43,6 @@ def handle_message(update_data):
                 else:  # It's a text message
                     send_message_to_channel(approved_message["text"], approved_message["response_text"]) # Use the new function
                     send_message(approved_message["from_id"], "GREAT!")
-
             except Exception as e:
                 send_message(update.from_id, f"An error occurred while approving: {e}")
 
