@@ -39,10 +39,10 @@ def handle_message(update_data):
                 if "photo_url" in approved_message:  # It's an image message
                     forward_message(CHANNEL_ID, approved_message["from_id"], message_id)
                     send_message(CHANNEL_ID, approved_message["response_text"])
-                    send_message(approved_message["from_id"], "GREAT!")
+                    send_message(approved_message["from_id"], "Your image and response have been approved and forwarded to the channel!")
                 else:  # It's a text message
                     send_message_to_channel(approved_message["text"], approved_message["response_text"]) # Use the new function
-                    send_message(approved_message["from_id"], "GREAT!")
+                    send_message(approved_message["from_id"], "Your message has been approved and forwarded to the channel!")
 
             except Exception as e:
                 send_message(update.from_id, f"An error occurred while approving: {e}")
@@ -59,7 +59,7 @@ def handle_message(update_data):
                 return
 
             denied_message = pending_approvals.pop(message_id)
-            send_message(denied_message["from_id"], "AA")
+            send_message(denied_message["from_id"], "Your message has been denied.")
 
         else:  # Handle other commands
             response_text = excute_command(update.from_id, update.text)
@@ -76,7 +76,7 @@ def handle_message(update_data):
         send_message(update.from_id, response_text)
 
         # Log (without username and ID)
-        log = f"@{update.user_name} id:`{update.from_id}`The content sent is:\n{update.text}\nThe reply content is:\n{response_text}\nThe logarithm of historical conversations is:{dialogueLogarithm}"
+        log = f"The content sent is:\n{update.text}\nThe reply content is:\n{response_text}"
         send_log(log)
 
         # Queue the message for admin approval
