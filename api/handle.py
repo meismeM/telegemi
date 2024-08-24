@@ -37,7 +37,7 @@ def handle_message(update_data):
 
             try:
                 if "photo_url" in approved_message:  # It's an image message
-    copy_message(CHANNEL_ID, approved_message["from_id"], message_id)
+                    copy_message(CHANNEL_ID, approved_message["from_id"], message_id)
                     send_message(CHANNEL_ID, approved_message["response_text"])
                     send_message(approved_message["from_id"], "GREAT!")
                 else:  # It's a text message
