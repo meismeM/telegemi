@@ -122,4 +122,3 @@ def handle_admin_commands(update_data):
     elif action == "/deny":
         send_message(admin_id, f"Message ID `{message_id}` has been denied.")
         send_message(approval_info["from_id"], "Your message has been denied and was not posted to the channel.")
-
