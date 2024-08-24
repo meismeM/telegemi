@@ -1,24 +1,16 @@
 from .auth import is_authorized
 from .command import excute_command
 from .context import ChatManager, ImageChatManger
-from .telegram import Update, send_message, send_message_with_inline_keyboard
+from .telegram import Update, send_message
 from .printLog import send_log, send_image_log
 from .config import ADMIN_ID  # Import ADMIN_ID from the config file
 
 chat_manager = ChatManager()
+pending_approvals = {}
 
 def send_message_to_channel(message):
     channel_id = "@telegemin"  # Replace with your channel ID or username
     send_message(channel_id, message)
-
-def answer_callback_query(callback_query_id, text=None, show_alert=False):
-    # Sends acknowledgment of callback query
-    send_log(f"Acknowledging callback query with ID: {callback_query_id}")
-    send_message("answerCallbackQuery", {
-        "callback_query_id": callback_query_id,
-        "text": text,
-        "show_alert": show_alert
-    })
 
 def handle_message(update_data):
     update = Update(update_data)
@@ -27,26 +19,18 @@ def handle_message(update_data):
     # Log the event
     send_log(f"event received\n@{update.user_name} id:`{update.from_id}`\nThe content sent is:\n{update.text}\n```json\n{update_data}```")
 
+    if not authorized:
+        send_message(update.from_id, f"You are not allowed to use this bot.\nID:`{update.from_id}`")
+        log = f"@{update.user_name} id:`{update.from_id}`No rights to use, The content sent is:\n{update.text}"
+        send_log(log)
+        return
+
     if update.type == "command":
         response_text = excute_command(update.from_id, update.text)
         if response_text != "":
             send_message(update.from_id, response_text)
             log = f"@{update.user_name} id:`{update.from_id}`The command sent is:\n{update.text}\nThe reply content is:\n{response_text}"
             send_log(log)
-
-            # Send to the admin for approval before posting to the channel
-            channel_message = f"A command was sent:\n{update.text}\nThe reply content is:\n{response_text}"
-            send_message_with_inline_keyboard(
-                ADMIN_ID, 
-                f"Command from @{update.user_name} (ID: `{update.from_id}`)\n\n{channel_message}",
-                [[{"text": "Post to Channel", "callback_data": f"post_command_{update.message_id}"}]]
-            )
-
-    elif not authorized:
-        send_message(update.from_id, f"You are not allowed to use this bot.\nID:`{update.from_id}`")
-        log = f"@{update.user_name} id:`{update.from_id}`No rights to use, The content sent is:\n{update.text}"
-        send_log(log)
-        return
 
     elif update.type == "text":
         chat = chat_manager.get_chat(update.from_id)
@@ -61,59 +45,81 @@ def handle_message(update_data):
         log = f"@{update.user_name} id:`{update.from_id}`The content sent is:\n{update.text}\nThe reply content is:\n{response_text}\nThe logarithm of historical conversations is:{dialogueLogarithm}"
         send_log(log)
 
-        # Send to the admin for approval before posting to the channel
-        send_message_with_inline_keyboard(
+        # Queue the message for admin approval
+        message_id = update.message_id
+        pending_approvals[message_id] = {
+            "from_id": update.from_id,
+            "user_name": update.user_name,
+            "text": update.text,
+            "response_text": response_text
+        }
+        
+        # Notify the admin
+        send_message(
             ADMIN_ID, 
-            f"Message from @{update.user_name} (ID: `{update.from_id}`)\n\nMessage: {update.text}\nReply: {response_text}",
-            [[{"text": "Post to Channel", "callback_data": f"post_text_{update.message_id}"}]]
+            f"New message from @{update.user_name} (ID: `{update.from_id}`):\n\nMessage: {update.text}\nReply: {response_text}\n\nTo approve, reply with /approve {message_id}\nTo deny, reply with /deny {message_id}"
         )
 
     elif update.type == "photo":
         chat = ImageChatManger(update.photo_caption, update.file_id)
         response_text = chat.send_image()
-        send_message(
-            update.from_id, response_text, reply_to_message_id=update.message_id
-        )
+        send_message(update.from_id, response_text, reply_to_message_id=update.message_id)
 
         photo_url = chat.tel_photo_url()
         imageID = update.file_id
-        log = f"@{update.user_name} id:`{update.from_id}`[photo]({photo_url}),The accompanying message is:\n{update.photo_caption}\nThe reply content is:\n{response_text}"
+        log = f"@{update.user_name} id:`{update.from_id}`[photo]({photo_url}), The accompanying message is:\n{update.photo_caption}\nThe reply content is:\n{response_text}"
         send_image_log("", imageID)
         send_log(log)
 
-        # Send to the admin for approval before posting to the channel
-        send_message_with_inline_keyboard(
+        # Queue the image for admin approval
+        message_id = update.message_id
+        pending_approvals[message_id] = {
+            "from_id": update.from_id,
+            "user_name": update.user_name,
+            "photo_caption": update.photo_caption,
+            "response_text": response_text,
+            "photo_url": photo_url,
+            "imageID": imageID
+        }
+
+        # Notify the admin
+        send_message(
             ADMIN_ID, 
-            f"Photo from @{update.user_name} (ID: `{update.from_id}`)\n\nCaption: {update.photo_caption}\nReply: {response_text}",
-            [[{"text": "Post to Channel", "callback_data": f"post_photo_{update.message_id}"}]]
+            f"New photo from @{update.user_name} (ID: `{update.from_id}`):\n\nCaption: {update.photo_caption}\nReply: {response_text}\n\nTo approve, reply with /approve {message_id}\nTo deny, reply with /deny {message_id}"
         )
 
-    elif "callback_query" in update_data:
-        callback_query_id = update_data["callback_query"]["id"]
-        callback_data = update_data["callback_query"]["data"]
+def handle_admin_commands(update_data):
+    update = Update(update_data)
+    admin_id = update.from_id
+    command_parts = update.text.split()
 
-        send_log(f"Callback query received: {callback_data} from user ID: {update_data['callback_query']['from']['id']}")
+    if admin_id != ADMIN_ID:
+        send_message(admin_id, "You are not authorized to approve or deny messages.")
+        return
+    
+    if len(command_parts) != 2 or command_parts[0] not in ["/approve", "/deny"]:
+        send_message(admin_id, "Invalid command format. Use /approve <message_id> or /deny <message_id>.")
+        return
 
-        # Acknowledge the callback query
-        answer_callback_query(callback_query_id, "Processing...")
+    action = command_parts[0]
+    message_id = int(command_parts[1])
 
-        # Handle the callback action
-        if callback_data.startswith("post_"):
-            action_type, message_id = callback_data.split("_")[1:]
+    if message_id not in pending_approvals:
+        send_message(admin_id, f"Message ID `{message_id}` not found.")
+        return
 
-            send_log(f"Admin approved a {action_type} with message_id: {message_id}")
+    approval_info = pending_approvals.pop(message_id)
 
-            # Get the original message text from the admin's message
-            original_message = update_data["callback_query"]["message"]["text"]
+    if action == "/approve":
+        # Post the message to the channel
+        if "photo_url" in approval_info:
+            send_message_to_channel(f"[Photo]({approval_info['photo_url']}) by @{approval_info['user_name']}:\n\nCaption: {approval_info['photo_caption']}\n\n(Approved by Admin)")
+        else:
+            send_message_to_channel(f"Message by @{approval_info['user_name']}:\n\n{approval_info['text']}\n\n(Approved by Admin)")
 
-            # Post to the channel
-            send_message_to_channel(f"{original_message}\n\n(Approved by Admin)")
+        send_message(admin_id, f"Message ID `{message_id}` has been approved and posted to the channel.")
+        send_message(approval_info["from_id"], "Your message has been approved and posted to the channel.")
+    elif action == "/deny":
+        send_message(admin_id, f"Message ID `{message_id}` has been denied.")
+        send_message(approval_info["from_id"], "Your message has been denied and was not posted to the channel.")
 
-            # Notify the admin of successful posting
-            send_message(ADMIN_ID, "The message has been posted to the channel successfully.")
-
-    else:
-        send_message(update.from_id, "The content you sent is not recognized\n\n/help")
-        log = f"@{update.user_name} id:`{update.from_id}`Sent unrecognized content"
-        send_log(log)
-        send_message_to_channel("Unrecognized content was sent.")
