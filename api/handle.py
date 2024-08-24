@@ -25,7 +25,17 @@ def handle_message(update_data):
         if update.text.startswith("approve") and is_admin(update.from_id):
             try:
                 message_id = int(update.text.split(" ")[1])
-                approved_message = pending_approvals.pop(message_id)
+            except (IndexError, ValueError):
+                send_message(update.from_id, "Invalid command format. Please use /approve <message_id>")
+                return
+
+            if message_id not in pending_approvals:
+                send_message(update.from_id, "Message ID not found.")
+                return
+
+            approved_message = pending_approvals.pop(message_id)
+
+            try:
                 if "photo_url" in approved_message:  # It's an image message
                     forward_message(CHANNEL_ID, approved_message["from_id"], message_id)
                     send_message(CHANNEL_ID, approved_message["response_text"])
@@ -33,15 +43,24 @@ def handle_message(update_data):
                 else:  # It's a text message
                     forward_message(CHANNEL_ID, approved_message["from_id"], message_id)
                     send_message(approved_message["from_id"], "Your message has been approved and forwarded to the channel!")
-            except (IndexError, ValueError, KeyError):
-                send_message(update.from_id, "Invalid command format or message ID.")
+
+            except Exception as e:
+                send_message(update.from_id, f"An error occurred while approving: {e}")
+
         elif update.text.startswith("deny") and is_admin(update.from_id):
             try:
                 message_id = int(update.text.split(" ")[1])
-                denied_message = pending_approvals.pop(message_id)
-                send_message(denied_message["from_id"], "Your message has been denied.")
-            except (IndexError, ValueError, KeyError):
-                send_message(update.from_id, "Invalid command format or message ID.")
+            except (IndexError, ValueError):
+                send_message(update.from_id, "Invalid command format. Please use /deny <message_id>")
+                return
+
+            if message_id not in pending_approvals:
+                send_message(update.from_id, "Message ID not found.")
+                return
+
+            denied_message = pending_approvals.pop(message_id)
+            send_message(denied_message["from_id"], "Your message has been denied.")
+            
         else:  # Handle other commands
             response_text = excute_command(update.from_id, update.text)
             if response_text != "":
