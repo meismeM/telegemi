@@ -37,14 +37,12 @@ def handle_message(update_data):
 
             try:
                 if "photo_url" in approved_message:  # It's an image message
-
-caption = approved_message.get("photo_caption", "")  
+                    caption = approved_message.get("photo_caption", "")  
                     send_imageMessage(CHANNEL_ID, caption, approved_message["imageID"])
-                    
                     send_message(CHANNEL_ID, approved_message["response_text"])
                     send_message(approved_message["from_id"], "GREAT!")
                 else:  # It's a text message
-                    send_message_to_channel(approved_message["text"], approved_message["response_text"]) # Use the new function
+                    send_message_to_channel(approved_message["text"], approved_message["response_text"])
                     send_message(approved_message["from_id"], "GREAT!")
             except Exception as e:
                 send_message(update.from_id, f"An error occurred while approving: {e}")
@@ -67,7 +65,7 @@ caption = approved_message.get("photo_caption", "")
             response_text = excute_command(update.from_id, update.text)
             if response_text != "":
                 send_message(update.from_id, response_text)
-                log = f"The command sent is:\n{update.text}\nThe reply content is:\n{response_text}"  # No username/ID
+                log = f"The command sent is:\n{update.text}\nThe reply content is:\n{response_text}"
                 send_log(log)
 
     elif update.type == "text":
@@ -102,7 +100,7 @@ caption = approved_message.get("photo_caption", "")
 
         photo_url = chat.tel_photo_url()
         imageID = update.file_id
-        log = f"[photo]({photo_url}), The accompanying message is:\n{update.photo_caption}\nThe reply content is:\n{response_text}"  # No username/ID
+        log = f"[photo]({photo_url}), The accompanying message is:\n{update.photo_caption}\nThe reply content is:\n{response_text}"
         send_image_log("", imageID)
         send_log(log)
 
