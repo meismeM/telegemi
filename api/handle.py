@@ -1,7 +1,7 @@
 from .auth import is_authorized, is_admin
 from .command import excute_command
 from .context import ChatManager, ImageChatManger
-from .telegram import Update, send_message, forward_message
+from .telegram import Update, send_message, send_photo # Import send_photo
 from .printLog import send_log, send_image_log
 from .config import CHANNEL_ID, ADMIN_ID
 
@@ -37,12 +37,10 @@ def handle_message(update_data):
 
             try:
                 if "photo_url" in approved_message:  # It's an image message
-                    forward_message(CHANNEL_ID, approved_message["from_id"], message_id)
-                    send_message(CHANNEL_ID, approved_message["response_text"])
-                    send_message(approved_message["from_id"], "Your image and response have been approved and forwarded to the channel!")
+                    # Send the photo directly to the channel (without forwarding)
+                    send_photo(CHANNEL_ID, approved_message["imageID"], caption=f"{approved_message['photo_caption']}\n\n{approved_message['response_text']}")
                 else:  # It's a text message
-                    send_message_to_channel(approved_message["text"], approved_message["response_text"]) # Use the new function
-                    send_message(approved_message["from_id"], "Your message has been approved and forwarded to the channel!")
+                    send_message_to_channel(approved_message["text"], approved_message["response_text"])
 
             except Exception as e:
                 send_message(update.from_id, f"An error occurred while approving: {e}")
