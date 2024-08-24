@@ -39,10 +39,10 @@ def handle_message(update_data):
                 if "photo_url" in approved_message:  # It's an image message
                     forward_message(CHANNEL_ID, approved_message["from_id"], message_id)
                     send_message(CHANNEL_ID, approved_message["response_text"])
-                    send_message(approved_message["from_id"], "Your image and response have been approved and forwarded to the channel!")
+                    send_message(approved_message["from_id"], "GREAT!")
                 else:  # It's a text message
                     send_message_to_channel(approved_message["text"], approved_message["response_text"]) # Use the new function
-                    send_message(approved_message["from_id"], "Your message has been approved and forwarded to the channel!")
+                    send_message(approved_message["from_id"], "GREAT!")
 
             except Exception as e:
                 send_message(update.from_id, f"An error occurred while approving: {e}")
