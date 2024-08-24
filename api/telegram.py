@@ -55,7 +55,7 @@ def forward_message(chat_id, from_chat_id, message_id):
         "message_id": message_id,
     }
     r = requests.post(f"{TELEGRAM_API}/forwardMessage", json=payload)
-    print(f"Forwarded message {message_id} from {from_chat_id} to {chat_id}")
+    
     return r
 
 
