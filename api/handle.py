@@ -1,19 +1,12 @@
 from .auth import is_authorized, is_admin
 from .command import excute_command
 from .context import ChatManager, ImageChatManger
-from .telegram import Update, send_message, send_imageMessage
+from .telegram import Update, send_message, send_imageMessage, forward_message
 from .printLog import send_log, send_image_log
 from .config import CHANNEL_ID, ADMIN_ID
 
 chat_manager = ChatManager()
 pending_approvals = {}
-
-def send_message_to_channel(message):
-    try:
-        send_message(CHANNEL_ID, message)
-        print(f"Message successfully sent to the channel: {CHANNEL_ID}")
-    except Exception as e:
-        print(f"Error sending message to channel: {e}")
 
 def handle_message(update_data):
     update = Update(update_data)
@@ -29,11 +22,32 @@ def handle_message(update_data):
         return
 
     if update.type == "command":
-        response_text = excute_command(update.from_id, update.text)
-        if response_text != "":
-            send_message(update.from_id, response_text)
-            log = f"@{update.user_name} id:`{update.from_id}`The command sent is:\n{update.text}\nThe reply content is:\n{response_text}"
-            send_log(log)
+        if update.text.startswith("approve") and is_admin(update.from_id):
+            try:
+                message_id = int(update.text.split(" ")[1])
+                approved_message = pending_approvals.pop(message_id)
+                if "photo_url" in approved_message:  # It's an image message
+                    forward_message(CHANNEL_ID, approved_message["from_id"], message_id)
+                    send_message(CHANNEL_ID, approved_message["response_text"])
+                    send_message(approved_message["from_id"], "Your image and response have been approved and forwarded to the channel!")
+                else:  # It's a text message
+                    forward_message(CHANNEL_ID, approved_message["from_id"], message_id)
+                    send_message(approved_message["from_id"], "Your message has been approved and forwarded to the channel!")
+            except (IndexError, ValueError, KeyError):
+                send_message(update.from_id, "Invalid command format or message ID.")
+        elif update.text.startswith("deny") and is_admin(update.from_id):
+            try:
+                message_id = int(update.text.split(" ")[1])
+                denied_message = pending_approvals.pop(message_id)
+                send_message(denied_message["from_id"], "Your message has been denied.")
+            except (IndexError, ValueError, KeyError):
+                send_message(update.from_id, "Invalid command format or message ID.")
+        else:  # Handle other commands
+            response_text = excute_command(update.from_id, update.text)
+            if response_text != "":
+                send_message(update.from_id, response_text)
+                log = f"@{update.user_name} id:`{update.from_id}`The command sent is:\n{update.text}\nThe reply content is:\n{response_text}"
+                send_log(log)
 
     elif update.type == "text":
         chat = chat_manager.get_chat(update.from_id)
