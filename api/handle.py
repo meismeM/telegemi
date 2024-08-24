@@ -37,7 +37,10 @@ def handle_message(update_data):
 
             try:
                 if "photo_url" in approved_message:  # It's an image message
-                    send_imageMessage(CHANNEL_ID, approved_message["from_id"], message_id)
+
+caption = approved_message.get("photo_caption", "")  
+                    send_imageMessage(CHANNEL_ID, caption, approved_message["imageID"])
+                    
                     send_message(CHANNEL_ID, approved_message["response_text"])
                     send_message(approved_message["from_id"], "GREAT!")
                 else:  # It's a text message
