@@ -3,10 +3,9 @@ from time import sleep
 import google.generativeai as genai
 
 from .auth import is_admin
-from .config import ALLOWED_USERS, IS_DEBUG_MODE, GOOGLE_API_KEY
+from .config import ALLOWED_USERS,IS_DEBUG_MODE,GOOGLE_API_KEY
 from .printLog import send_log
 from .telegram import send_message
-from .handle import pending_approvals, send_message_to_channel
 
 admin_auch_info = "You are not the administrator or your administrator ID is set incorrectly!!!"
 debug_mode_info = "Debug mode is not enabled!"
@@ -55,57 +54,6 @@ def send_message_test(id, command):
     send_log("success")
     return ""
 
-def approve_message(from_id, command):
-    if not is_admin(from_id):
-        return admin_auch_info
-
-    command_parts = command.strip().split()
-
-    if len(command_parts) != 2:
-        return "Invalid command format. Use /approve [message_id]."
-
-    try:
-        message_id = int(command_parts[1])
-    except ValueError:
-        return "Invalid message ID. Please provide a valid number."
-
-    if message_id not in pending_approvals:
-        return f"Message ID `{message_id}` not found."
-
-    approval_info = pending_approvals.pop(message_id)
-
-    if "photo_url" in approval_info:
-        send_message_to_channel(f"[Photo]({approval_info['photo_url']}) by @{approval_info['user_name']}:\n\nCaption: {approval_info['photo_caption']}\n\n(Approved by Admin)")
-    else:
-        send_message_to_channel(f"Message by @{approval_info['user_name']}:\n\n{approval_info['text']}\n\n(Approved by Admin)")
-
-    send_message(from_id, f"Message ID `{message_id}` has been approved and posted to the channel.")
-    send_message(approval_info["from_id"], "Your message has been approved and posted to the channel.")
-    return ""
-
-def deny_message(from_id, command):
-    if not is_admin(from_id):
-        return admin_auch_info
-
-    command_parts = command.strip().split()
-
-    if len(command_parts) != 2:
-        return "Invalid command format. Use /deny [message_id]."
-
-    try:
-        message_id = int(command_parts[1])
-    except ValueError:
-        return "Invalid message ID. Please provide a valid number."
-
-    if message_id not in pending_approvals:
-        return f"Message ID `{message_id}` not found."
-
-    approval_info = pending_approvals.pop(message_id)
-
-    send_message(from_id, f"Message ID `{message_id}` has been denied.")
-    send_message(approval_info["from_id"], "Your message has been denied and was not posted to the channel.")
-    return ""
-
 def excute_command(from_id, command):
     if command == "start" or command == "help":
         return help()
@@ -119,12 +67,6 @@ def excute_command(from_id, command):
 
     elif command.startswith("send_message"):
         return send_message_test(from_id, command)
-
-    elif command.startswith("approve"):
-        return approve_message(from_id, command)
-
-    elif command.startswith("deny"):
-        return deny_message(from_id, command)
 
     elif command in ["get_allowed_users", "get_api_key", "list_models"]:
         if not is_admin(from_id):
