@@ -29,16 +29,12 @@ def handle_message(update_data):
         return
 
     if update.type == "command":
-        # Handle admin commands (approve/deny)
-        if update.text.startswith("/approve ") or update.text.startswith("/deny "):
-            handle_admin_commands(update_data)
-        else:
-            # Handle other commands
-            response_text = excute_command(update.from_id, update.text)
-            if response_text != "":
-                send_message(update.from_id, response_text)
-                log = f"@{update.user_name} id:`{update.from_id}`The command sent is:\n{update.text}\nThe reply content is:\n{response_text}"
-                send_log(log)
+        response_text = excute_command(update.from_id, update.text)
+        if response_text != "":
+            send_message(update.from_id, response_text)
+            log = f"@{update.user_name} id:`{update.from_id}`The command sent is:\n{update.text}\nThe reply content is:\n{response_text}"
+            send_log(log)
+
     elif update.type == "text":
         chat = chat_manager.get_chat(update.from_id)
         answer = chat.send_message(update.text)
@@ -94,43 +90,3 @@ def handle_message(update_data):
             ADMIN_ID, 
             f"New photo from @{update.user_name} (ID: `{update.from_id}`):\n\nCaption: {update.photo_caption}\nReply: {response_text}\n\nTo approve, reply with /approve {message_id}\nTo deny, reply with /deny {message_id}"
         )
-
-
-def handle_admin_commands(update_data):
-    update = Update(update_data)
-    admin_id = update.from_id
-    command_parts = update.text.strip().split()  # Strip extra spaces
-
-    if admin_id != ADMIN_ID:
-        send_message(admin_id, "You are not authorized to approve or deny messages.")
-        return
-
-    if len(command_parts) < 2 or command_parts[0] not in ["/approve", "/deny"]:
-        send_message(admin_id, "Invalid command format. Use /approve [message_id] or /deny [message_id].")
-        return
-
-    action = command_parts[0]
-    try:
-        message_id = int(command_parts[1])
-    except ValueError:
-        send_message(admin_id, "Invalid message ID. Please provide a valid number.")
-        return
-
-    if message_id not in pending_approvals:
-        send_message(admin_id, f"Message ID `{message_id}` not found.")
-        return
-
-    approval_info = pending_approvals.pop(message_id)
-
-    if action == "/approve":
-        # Post the message to the channel
-        if "photo_url" in approval_info:
-            send_message_to_channel(f"[Photo]({approval_info['photo_url']}) by @{approval_info['user_name']}:\n\nCaption: {approval_info['photo_caption']}\n\n(Approved by Admin)")
-        else:
-            send_message_to_channel(f"Message by @{approval_info['user_name']}:\n\n{approval_info['text']}\n\n(Approved by Admin)")
-
-        send_message(admin_id, f"Message ID `{message_id}` has been approved and posted to the channel.")
-        send_message(approval_info["from_id"], "Your message has been approved and posted to the channel.")
-    elif action == "/deny":
-        send_message(admin_id, f"Message ID `{message_id}` has been denied.")
-        send_message(approval_info["from_id"], "Your message has been denied and was not posted to the channel.")
