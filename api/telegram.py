@@ -7,7 +7,6 @@ from .config import BOT_TOKEN
 
 TELEGRAM_API = f"https://api.telegram.org/bot{BOT_TOKEN}"
 
-
 def send_message(chat_id, text, **kwargs):
     """send text message"""
     payload = {
@@ -20,7 +19,6 @@ def send_message(chat_id, text, **kwargs):
     print(f"Sent message: {text} to {chat_id}")
     return r
 
-
 def send_imageMessage(chat_id, text, imageID):
     """send image message"""
     payload = {
@@ -32,7 +30,6 @@ def send_imageMessage(chat_id, text, imageID):
     r = requests.post(f"{TELEGRAM_API}/sendPhoto", data=payload)
     print(f"Sent imageMessage: {text} to {chat_id}")
     return r
-
 
 def send_message_with_inline_keyboard(chat_id, text, keyboard, **kwargs):
     """send text message with inline keyboard"""
@@ -55,11 +52,33 @@ def forward_message(chat_id, from_chat_id, message_id):
         "message_id": message_id,
     }
     r = requests.post(f"{TELEGRAM_API}/forwardMessage", json=payload)
-    
     return r
 
-
-
+def copy_message(chat_id, from_chat_id, message_id):
+    """Copy message to a channel without quoting the original sender"""
+    # Get the message details
+    get_message_url = f"{TELEGRAM_API}/getChatMessage"
+    message_payload = {
+        "chat_id": from_chat_id,
+        "message_id": message_id
+    }
+    message_details = requests.post(get_message_url, json=message_payload).json()
+    
+    if not message_details['ok']:
+        print(f"Failed to retrieve message: {message_details['description']}")
+        return message_details
+    
+    # Extract message content
+    message_content = message_details['result'].get('text') or message_details['result'].get('caption', '')
+    file_id = message_details['result'].get('photo')[-1]['file_id'] if 'photo' in message_details['result'] else None
+    
+    # Send the message as a new message to the target chat
+    if file_id:
+        # If the message is a photo
+        return send_imageMessage(chat_id, message_content, file_id)
+    else:
+        # If the message is a text message
+        return send_message(chat_id, message_content)
 
 class Update:
     def __init__(self, update: Dict) -> None:
@@ -69,7 +88,6 @@ class Update:
         self.text = self._text()
         self.photo_caption = self._photo_caption()
         self.file_id = self._file_id()
-        #self.user_name = update["message"]["from"]["username"]
         self.user_name = update["message"]["from"].get("username", f" [UnnamedUser](tg://openmessage?user_id={self.from_id})")
         self.message_id: int = update["message"]["message_id"]
 
