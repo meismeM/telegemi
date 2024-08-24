@@ -30,7 +30,7 @@ def handle_message(update_data):
 
     if update.type == "command":
         # Handle admin commands (approve/deny)
-        if update.text.startswith("/approve") or update.text.startswith("/deny"):
+        if update.text.startswith("/approve ") or update.text.startswith("/deny "):
             handle_admin_commands(update_data)
         else:
             # Handle other commands
