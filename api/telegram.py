@@ -104,7 +104,7 @@ class Update:
 
     def _photo_caption(self):
         if self.type == "photo":
-            return self.update["message"].get("caption", "describe the photo")
+            return self.update["message"].get("caption", "describe the photo and answer all questions if it has")
         return ""
 
     def _text(self):
