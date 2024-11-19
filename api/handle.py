@@ -22,139 +22,104 @@ def handle_message(update_data):
         return
 
     if update.type == "command":
-        handle_command(update)
+        if update.text.startswith("approve") and is_admin(update.from_id):
+            try:
+                message_id = int(update.text.split(" ")[1])
+            except (IndexError, ValueError):
+                send_message(update.from_id, "Invalid command format. Please use /approve <message_id>")
+                return
+
+            if message_id not in pending_approvals:
+                send_message(update.from_id, "Message ID not found.")
+                return
+
+            approved_message = pending_approvals.pop(message_id)
+
+            try:
+                if "photo_url" in approved_message:  # It's an image message
+                    caption = approved_message.get("photo_caption", "")  
+                    send_imageMessage(CHANNEL_ID, caption, approved_message["imageID"])
+                    send_message(CHANNEL_ID, approved_message["response_text"])
+                    send_message(approved_message["from_id"], "GREAT!")
+                else:  # It's a text message
+                    send_message_to_channel(approved_message["text"], approved_message["response_text"])
+                    send_message(approved_message["from_id"], "GREAT!")
+            except Exception as e:
+                send_message(update.from_id, f"An error occurred while approving: {e}")
+
+        elif update.text.startswith("deny") and is_admin(update.from_id):
+            try:
+                message_id = int(update.text.split(" ")[1])
+            except (IndexError, ValueError):
+                send_message(update.from_id, "Invalid command format. Please use /deny <message_id>")
+                return
+
+            if message_id not in pending_approvals:
+                send_message(update.from_id, "Message ID not found.")
+                return
+
+            denied_message = pending_approvals.pop(message_id)
+            send_message(denied_message["from_id"], "Your message has been denied.")
+
+        else:  # Handle other commands
+            response_text = excute_command(update.from_id, update.text)
+            if response_text != "":
+                send_message(update.from_id, response_text)
+                log = f"The command sent is:\n{update.text}\nThe reply content is:\n{response_text}"
+                send_log(log)
+
     elif update.type == "text":
-        handle_text(update)
+        chat = chat_manager.get_chat(update.from_id)
+        answer = chat.send_message(update.text)
+        extra_text = "\n\nType /new to kick off a new chat." if chat.history_length > 5 else ""
+        response_text = f"{answer}{extra_text}"
+        send_message(update.from_id, response_text)
+
+        # Log (without username and ID)
+        log = f"The content sent is:\n{update.text}\nThe reply content is:\n{response_text}"
+        send_log(log)
+
+        # Queue the message for admin approval
+        message_id = update.message_id
+        pending_approvals[message_id] = {
+            "from_id": update.from_id,
+            "text": update.text,
+            "response_text": response_text
+        }
+
+        # Notify the admin (with formatted message and without username)
+        send_message(
+            ADMIN_ID,
+            f"New message:\n\nMessage: {update.text}\nReply: {response_text}\n\nTo approve, reply with /approve {message_id}\nTo deny, reply with /deny {message_id}"
+        )
+
     elif update.type == "photo":
-        handle_photo(update)
-    elif update.type == "document":
-        handle_document(update)
+        chat = ImageChatManger(update.photo_caption, update.file_id)
+        response_text = chat.send_image()
+        send_message(update.from_id, response_text, reply_to_message_id=update.message_id)
 
-def handle_command(update):
-    if update.text.startswith("approve") and is_admin(update.from_id):
-        try:
-            message_id = int(update.text.split(" ")[1])
-        except (IndexError, ValueError):
-            send_message(update.from_id, "Invalid command format. Please use /approve <message_id>")
-            return
+        photo_url = chat.tel_photo_url()
+        imageID = update.file_id
+        log = f"[photo]({photo_url}), The accompanying message is:\n{update.photo_caption}\nThe reply content is:\n{response_text}"
+        send_image_log("", imageID)
+        send_log(log)
 
-        if message_id not in pending_approvals:
-            send_message(update.from_id, "Message ID not found.")
-            return
+        # Queue the image for admin approval
+        message_id = update.message_id
+        pending_approvals[message_id] = {
+            "from_id": update.from_id,
+            "photo_caption": update.photo_caption,
+            "response_text": response_text,
+            "photo_url": photo_url,
+            "imageID": imageID
+        }
 
-        approved_message = pending_approvals.pop(message_id)
+        # Notify the admin (without username)
+        send_message(
+            ADMIN_ID,
+            f"New photo:\n\nCaption: {update.photo_caption}\nReply: {response_text}\n\nTo approve, reply with /approve {message_id}\nTo deny, reply with /deny {message_id}"
+        )
 
-        try:
-            if "photo_url" in approved_message:  # It's an image message
-                caption = approved_message.get("photo_caption", "")  
-                send_imageMessage(CHANNEL_ID, caption, approved_message["imageID"])
-                send_message(CHANNEL_ID, approved_message["response_text"])
-                send_message(approved_message["from_id"], "GREAT!")
-            elif "document_name" in approved_message:  # It's a document message
-                send_message(
-                    CHANNEL_ID,
-                    f"Document Approved:\n\nFile Name: {approved_message['document_name']}\nCaption: {approved_message['document_caption']}"
-                )
-                send_message(approved_message["from_id"], "Your document has been approved and posted!")
-            else:  # It's a text message
-                send_message_to_channel(approved_message["text"], approved_message["response_text"])
-                send_message(approved_message["from_id"], "GREAT!")
-        except Exception as e:
-            send_message(update.from_id, f"An error occurred while approving: {e}")
-
-    elif update.text.startswith("deny") and is_admin(update.from_id):
-        try:
-            message_id = int(update.text.split(" ")[1])
-        except (IndexError, ValueError):
-            send_message(update.from_id, "Invalid command format. Please use /deny <message_id>")
-            return
-
-        if message_id not in pending_approvals:
-            send_message(update.from_id, "Message ID not found.")
-            return
-
-        denied_message = pending_approvals.pop(message_id)
-        send_message(denied_message["from_id"], "Your message has been denied.")
-
-    else:  # Handle other commands
-        response_text = excute_command(update.from_id, update.text)
-        if response_text != "":
-            send_message(update.from_id, response_text)
-            log = f"The command sent is:\n{update.text}\nThe reply content is:\n{response_text}"
-            send_log(log)
-
-def handle_text(update):
-    chat = chat_manager.get_chat(update.from_id)
-    answer = chat.send_message(update.text)
-    extra_text = "\n\nType /new to kick off a new chat." if chat.history_length > 5 else ""
-    response_text = f"{answer}{extra_text}"
-    send_message(update.from_id, response_text)
-
-    # Log (without username and ID)
-    log = f"The content sent is:\n{update.text}\nThe reply content is:\n{response_text}"
-    send_log(log)
-
-    # Queue the message for admin approval
-    message_id = update.message_id
-    pending_approvals[message_id] = {
-        "from_id": update.from_id,
-        "text": update.text,
-        "response_text": response_text
-    }
-
-    # Notify the admin (with formatted message and without username)
-    send_message(
-        ADMIN_ID,
-        f"New message:\n\nMessage: {update.text}\nReply: {response_text}\n\nTo approve, reply with /approve {message_id}\nTo deny, reply with /deny {message_id}"
-    )
-
-def handle_photo(update):
-    chat = ImageChatManger(update.photo_caption, update.file_id)
-    response_text = chat.send_image()
-    send_message(update.from_id, response_text, reply_to_message_id=update.message_id)
-
-    photo_url = chat.tel_photo_url()
-    imageID = update.file_id
-    log = f"[photo]({photo_url}), The accompanying message is:\n{update.photo_caption}\nThe reply content is:\n{response_text}"
-    send_image_log("", imageID)
-    send_log(log)
-
-    # Queue the image for admin approval
-    message_id = update.message_id
-    pending_approvals[message_id] = {
-        "from_id": update.from_id,
-        "photo_caption": update.photo_caption,
-        "response_text": response_text,
-        "photo_url": photo_url,
-        "imageID": imageID
-    }
-
-    # Notify the admin (without username)
-    send_message(
-        ADMIN_ID,
-        f"New photo:\n\nCaption: {update.photo_caption}\nReply: {response_text}\n\nTo approve, reply with /approve {message_id}\nTo deny, reply with /deny {message_id}"
-    )
-
-def handle_document(update):
-    file_id = update.file_id
-    file_name = update.document_name
-    caption = update.document_caption or "No caption provided."
-
-    # Queue the document for admin approval
-    message_id = update.message_id
-    pending_approvals[message_id] = {
-        "from_id": update.from_id,
-        "document_name": file_name,
-        "document_caption": caption,
-        "file_id": file_id
-    }
-
-    # Notify the admin
-    send_message(
-        ADMIN_ID,
-        f"New document for approval:\n\nFile Name: {file_name}\nCaption: {caption}\n\n"
-        f"To approve, reply with /approve {message_id}\nTo deny, reply with /deny {message_id}"
-    )
 
 def send_message_to_channel(message, response):
     try:
