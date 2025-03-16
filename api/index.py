@@ -55,8 +55,10 @@ def home():
             handle_message(update)
             return "ok", 200
         except Exception as e:
-            logging.exception("Error handling request") # Best practice - logs exception info automatically
-            return "Internal server error", 500
+        logging.error("Error handling request: %s", e)
+        # [!HIGHLIGHT!] Log the exception type and arguments (for more details)
+        logging.error(f"Exception details: Type: {type(e)}, Args: {e.args}") # ADD THIS LINE
+        return "Internal server error", 500
     return render_template("status.html")
 
 @app.route("/health", methods=["GET"])
