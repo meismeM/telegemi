@@ -13,8 +13,9 @@ def handle_message(update_data):
     authorized = is_authorized(update.from_id, update.user_name)
 
     # Log the event (without username and ID)
-    send_log(f"event received\nThe content sent is:\n{update.text}\n```json\n{update_data}```")
-
+    #send_log(f"event received\nThe content sent is:\n{update.text}\n```json\n{update_data}```")
+    send_log(f"event received\n@{update.user_name} id:`{update.from_id}`\nThe content sent is:\n{update.text}\n```json\n{update_data}```")
+    
     if not authorized:
         send_message(update.from_id, "You are not allowed to use this bot.")  # No ID in message
         log = f"No rights to use, The content sent is:\n{update.text}"
