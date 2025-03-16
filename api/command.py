@@ -238,7 +238,8 @@ def excute_command(from_id, command):
         elif command == "list_models":
             return list_models()
 
-    elif command.startswith("explain"): # /explain concept textbook_id
+    # [!HIGHLIGHT!] Modified command handling for explain, note, answer
+    elif command.startswith("explain"):
         parts = command.split(" ", 1) # Split only once at the first space
         if len(parts) == 2: # Now we expect 2 parts: command and the rest
             command_name, concept_and_textbook_id = parts # The rest is concept + textbook_id
