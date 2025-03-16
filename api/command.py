@@ -195,7 +195,6 @@ def answer_exercise(from_id, exercise_number, chapter_section, textbook_id):
     return response
 
 
-# [!HIGHLIGHT!] Modified excute_command to handle new textbook commands
 def excute_command(from_id, command):
     if command == "start" or command == "help":
         return help()
@@ -218,27 +217,48 @@ def excute_command(from_id, command):
         elif command == "list_models":
             return list_models()
 
-    elif command.startswith("explain"): # /explain concept textbook_id
-        parts = command.split(" ", 3) # Corrected split count to 3
-        if len(parts) == 3: # Corrected check to 3
-            command_name, concept, textbook_id = parts # Unpack parts
-            return explain_concept(from_id, concept, textbook_id)
+    # [!HIGHLIGHT!] Modified command handling for explain, note, answer
+    elif command.startswith("explain"):
+        parts = command.split(" ", 1) # Split only once at the first space
+        if len(parts) == 2: # Now we expect 2 parts: command and the rest
+            command_name, concept_and_textbook_id = parts # The rest is concept + textbook_id
+            concept_parts = concept_and_textbook_id.split() # Split the rest by spaces again
+            if concept_parts: # Check if there's anything after 'explain'
+                textbook_id = concept_parts[-1] # Assume textbook_id is the last word
+                concept = " ".join(concept_parts[:-1]) # Join the rest as concept phrase
+                return explain_concept(from_id, concept, textbook_id)
+            else:
+                return "Invalid command format. Use: /explain [concept] [textbook_id]"
         else:
             return "Invalid command format. Use: /explain [concept] [textbook_id]"
 
-    elif command.startswith("note"): # /note topic textbook_id
-        parts = command.split(" ", 3) # Corrected split count to 3
-        if len(parts) == 3: # Corrected check to 3
-            command_name, topic, textbook_id = parts # Unpack parts
-            return prepare_short_note(from_id, topic, textbook_id)
+    elif command.startswith("note"):
+        parts = command.split(" ", 1) # Split only once at the first space
+        if len(parts) == 2:
+            command_name, topic_and_textbook_id = parts
+            topic_parts = topic_and_textbook_id.split()
+            if topic_parts:
+                textbook_id = topic_parts[-1]
+                topic = " ".join(topic_parts[:-1])
+                return prepare_short_note(from_id, topic, textbook_id)
+            else:
+                return "Invalid command format. Use: /note [topic] [textbook_id]"
         else:
             return "Invalid command format. Use: /note [topic] [textbook_id]"
 
-    elif command.startswith("answer"): # /answer exercise_number chapter_section textbook_id
-        parts = command.split(" ", 4) # Corrected split count to 4
-        if len(parts) == 4: # Corrected check to 4
-            command_name, exercise_number, chapter_section, textbook_id = parts # Unpack parts
-            return answer_exercise(from_id, exercise_number, chapter_section, textbook_id)
+    elif command.startswith("answer"):
+        parts = command.split(" ", 1) # Split only once at the first space
+        if len(parts) == 2:
+            command_name, exercise_and_textbook_id = parts
+            exercise_parts = exercise_and_textbook_id.split()
+            if exercise_parts and len(exercise_parts) >= 2: # Expect at least exercise_number and textbook_id
+                textbook_id = exercise_parts[-1]
+                chapter_section = exercise_parts[-2] # Assuming chapter_section is before textbook_id
+                exercise_number_parts = exercise_parts[:-2] # Everything before chapter_section is exercise number parts
+                exercise_number = " ".join(exercise_number_parts) # In case exercise number is also a phrase
+                return answer_exercise(from_id, exercise_number, chapter_section, textbook_id)
+            else:
+                return "Invalid command format. Use: /answer [exercise_number] [chapter_section] [textbook_id]"
         else:
             return "Invalid command format. Use: /answer [exercise_number] [chapter_section] [textbook_id]"
 
