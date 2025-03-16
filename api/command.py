@@ -274,10 +274,12 @@ def excute_command(from_id, command):
             exercise_parts = exercise_and_textbook_id.split()
             if exercise_parts and len(exercise_parts) >= 2: # Expect at least exercise_number and textbook_id
                 textbook_id = exercise_parts[-1]
-                chapter_section = exercise_parts[-2] # Assuming chapter_section is before textbook_id
-                exercise_number_parts = exercise_parts[:-2] # Everything before chapter_section is exercise number parts
-                exercise_number = " ".join(exercise_number_parts) # In case exercise number is also a phrase
-                return answer_exercise(from_id, exercise_number, chapter_section, textbook_id)
+                # [!HIGHLIGHT!] Combine exercise_number and chapter_section into exercise_query
+                exercise_query_parts = exercise_parts[:-1] # Everything before textbook_id is exercise query
+                exercise_query = " ".join(exercise_query_parts) # Join as exercise_query phrase
+
+                # [!CORRECTED CALL!] Pass only 3 arguments: from_id, exercise_query, textbook_id
+                return answer_exercise(from_id, exercise_query, textbook_id) 
             else:
                 return "Invalid command format. Use: /answer [exercise_number] [chapter_section] [textbook_id]"
         else:
