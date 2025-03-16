@@ -174,7 +174,7 @@ def prepare_short_note(from_id, topic, textbook_id):
     return response
 
 def answer_exercise(from_id, exercise_query, textbook_id):
-    """Answers an exercise from a textbook."""
+    """Answers an exercise from a textbook with detailed regex logging."""
     textbook_content = get_textbook_content(textbook_id)
     if not textbook_content:
         return f"Textbook with ID '{textbook_id}' not found."
@@ -186,31 +186,48 @@ def answer_exercise(from_id, exercise_query, textbook_id):
     best_match_end = -1
     context_text = "Exercise not found."
 
-    query_parts = exercise_query.lower().split() # Split user query into words
+    query_parts = exercise_query.lower().split()
 
-    for match in exercise_regex.finditer(textbook_content.lower()): # Iterate on lowercased textbook content
+    print(f"--- Searching for exercise: '{exercise_query}' ---") # Log the query
+
+    found_matches = [] # List to store all matches for logging
+
+    for match in exercise_regex.finditer(textbook_content.lower()):
         full_match = match.group(0)
         part = match.group(2)
         question_type = match.group(3)
         question_number = match.group(4)
 
-        match_score = 0 # Initialize score for this match
-
-        for query_part in query_parts: # Check if each word in query is in the match
+        match_score = 0
+        for query_part in query_parts:
             if query_part in full_match.lower():
-                match_score += 1 # Increment score for each word found
+                match_score += 1
 
-        if match_score > 0: # If at least one word from query is found in the marker
-            if best_match_start == -1 or match_score > best_match_score: # Check for better match
-                best_match_start = match.start()
-                best_match_end = match.end()
-                best_match_score = match_score # Store the score of the best match
+        found_matches.append({ # Store match details for logging
+            "full_match": full_match,
+            "part": part,
+            "question_type": question_type,
+            "question_number": question_number,
+            "score": match_score
+        })
 
-    if best_match_start != -1:
+        if best_match_start == -1 or match_score > best_match_score:
+            best_match_start = match.start()
+            best_match_end = match.end()
+            best_match_score = match_score
+
+    # [!HIGHLIGHT!] Log all found matches (even if no "best match" is good enough)
+    print("--- All Regex Matches Found (with scores): ---")
+    for match_info in found_matches:
+        print(f"  Match: '{match_info['full_match']}', Score: {match_info['score']}, Part: '{match_info['part']}', Type: '{match_info['question_type']}', Number: '{match_info['question_number']}'")
+
+    if best_match_start != -1 and best_match_score > 0 : # Added score check to ensure at least some word matched
         context_start = max(0, best_match_start - 500)
         context_end = min(len(textbook_content), best_match_end + 1000)
         context_text = textbook_content[context_start:context_end]
+        print(f"--- Best Match Found: '{text_text[:100]}...' (score: {best_match_score}) ---") # Log best match
     else:
+        print("--- No Suitable Exercise Match Found ---") # Log if no good match
         return f"Exercise '{exercise_query}' not found in textbook '{textbook_id}'."
 
     prompt = f"Based on the following excerpt from a Grade 9 economics textbook, answer the review question:\n\n---\n{context_text}\n---\n\nSpecifically, answer exercise/question: '{exercise_query}'."
