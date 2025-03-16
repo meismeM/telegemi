@@ -143,7 +143,6 @@ def send_message_test(id, command):
     send_log("success")
     return ""
 
-# [!HIGHLIGHT!] New command functions for textbook processing
 def explain_concept(from_id, concept, textbook_id):
     """Explains a concept from a textbook."""
     textbook_content = get_textbook_content(textbook_id)
@@ -174,23 +173,45 @@ def prepare_short_note(from_id, topic, textbook_id):
     response = generate_content(prompt)
     return response
 
-def answer_exercise(from_id, exercise_number, chapter_section, textbook_id):
+def answer_exercise(from_id, exercise_query, textbook_id): # Renamed exercise_number to exercise_query - more flexible
     """Answers an exercise from a textbook."""
     textbook_content = get_textbook_content(textbook_id)
     if not textbook_content:
         return f"Textbook with ID '{textbook_id}' not found."
 
-    # --- You'll need a way to identify exercises in the textbook text ---
-    exercise_marker = f"Exercise {exercise_number}"
-    start_index = textbook_content.lower().find(exercise_marker.lower())
-    if start_index == -1:
-        return f"Exercise '{exercise_number}' not found in textbook '{textbook_id}'."
+    # [!HIGHLIGHT!] More flexible exercise marker search using regex (basic)
+    import re
+    # Example query: "Part I Question 2", "Part II Question 4", "Review Questions Part I 5", etc.
+    exercise_regex = re.compile(rf"(Review Questions)?\s*(Part [IVX]+:)?\s*(Question|exercise)\s*([\d.]+)", re.IGNORECASE)
 
-    context_start = max(0, start_index - 200) # Context around the exercise
-    context_end = min(len(textbook_content), start_index + 800)
-    exercise_text = textbook_content[context_start:context_end]
+    best_match_start = -1
+    best_match_end = -1
+    context_text = "Exercise not found." # Default message
 
-    prompt = f"Answer exercise number '{exercise_number}' from chapter/section '{chapter_section}' based on the following textbook excerpt:\n\n---\n{exercise_text}\n---\n\nProvide a detailed and step-by-step answer if applicable, suitable for a Grade 9 student."
+    for match in exercise_regex.finditer(textbook_content):
+        full_match = match.group(0) # Full matched string (e.g., "Review Questions Part I: 1")
+        part = match.group(2) # "Part I:", "Part II:", etc. or None
+        question_type = match.group(3) # "Question" or "exercise"
+        question_number = match.group(4) # "1", "2", "3", etc.
+
+        # [!HIGHLIGHT!]  Simple query matching - improve this for better matching if needed
+        query_lower = exercise_query.lower()
+        match_text_lower = full_match.lower()
+
+        if query_lower in match_text_lower: # Basic substring match - could be improved
+            best_match_start = match.start()
+            best_match_end = match.end()
+            break # For now, take the first match.  Could refine to find "best" match later
+
+    if best_match_start != -1:
+        context_start = max(0, best_match_start - 500) # Context before and after
+        context_end = min(len(textbook_content), best_match_end + 1000)
+        context_text = textbook_content[context_start:context_end]
+    else:
+        return f"Exercise '{exercise_query}' not found in textbook '{textbook_id}'."
+
+
+    prompt = f"Based on the following excerpt from a Grade 9 economics textbook, answer the review question:\n\n---\n{context_text}\n---\n\nSpecifically, answer exercise/question: '{exercise_query}'. Provide a detailed answer suitable for a Grade 9 student. If it's a True/False question, state True or False and briefly explain why. If it's multiple choice, indicate the correct option (A, B, C, or D) and explain your reasoning."
     response = generate_content(prompt)
     return response
 
@@ -217,8 +238,7 @@ def excute_command(from_id, command):
         elif command == "list_models":
             return list_models()
 
-    # [!HIGHLIGHT!] Modified command handling for explain, note, answer
-    elif command.startswith("explain"):
+    elif command.startswith("explain"): # /explain concept textbook_id
         parts = command.split(" ", 1) # Split only once at the first space
         if len(parts) == 2: # Now we expect 2 parts: command and the rest
             command_name, concept_and_textbook_id = parts # The rest is concept + textbook_id
