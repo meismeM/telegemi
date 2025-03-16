@@ -173,48 +173,49 @@ def prepare_short_note(from_id, topic, textbook_id):
     response = generate_content(prompt)
     return response
 
-def answer_exercise(from_id, exercise_query, textbook_id): # Renamed exercise_number to exercise_query - more flexible
-    #Answers an exercise from a textbook.
+def answer_exercise(from_id, exercise_query, textbook_id):
+    """Answers an exercise from a textbook."""
     textbook_content = get_textbook_content(textbook_id)
     if not textbook_content:
         return f"Textbook with ID '{textbook_id}' not found."
 
-    # [!HIGHLIGHT!] More flexible exercise marker search using regex (basic)
     import re
-    # Example query: "Part I Question 2", "Part II Question 4", "Review Questions Part I 5", etc.
     exercise_regex = re.compile(rf"(Review Questions)?\s*(Part [IVX]+:)?\s*(Question|exercise)\s*([\d.]+)", re.IGNORECASE)
 
     best_match_start = -1
     best_match_end = -1
-    context_text = "Exercise not found." # Default message
+    context_text = "Exercise not found."
 
-    for match in exercise_regex.finditer(textbook_content):
-        full_match = match.group(0) # Full matched string (e.g., "Review Questions Part I: 1")
-        part = match.group(2) # "Part I:", "Part II:", etc. or None
-        question_type = match.group(3) # "Question" or "exercise"
-        question_number = match.group(4) # "1", "2", "3", etc.
+    query_parts = exercise_query.lower().split() # Split user query into words
 
-        # [!HIGHLIGHT!]  Simple query matching - improve this for better matching if needed
-        query_lower = exercise_query.lower()
-        match_text_lower = full_match.lower()
+    for match in exercise_regex.finditer(textbook_content.lower()): # Iterate on lowercased textbook content
+        full_match = match.group(0)
+        part = match.group(2)
+        question_type = match.group(3)
+        question_number = match.group(4)
 
-        if query_lower in match_text_lower: # Basic substring match - could be improved
-            best_match_start = match.start()
-            best_match_end = match.end()
-            break # For now, take the first match.  Could refine to find "best" match later
+        match_score = 0 # Initialize score for this match
+
+        for query_part in query_parts: # Check if each word in query is in the match
+            if query_part in full_match.lower():
+                match_score += 1 # Increment score for each word found
+
+        if match_score > 0: # If at least one word from query is found in the marker
+            if best_match_start == -1 or match_score > best_match_score: # Check for better match
+                best_match_start = match.start()
+                best_match_end = match.end()
+                best_match_score = match_score # Store the score of the best match
 
     if best_match_start != -1:
-        context_start = max(0, best_match_start - 500) # Context before and after
+        context_start = max(0, best_match_start - 500)
         context_end = min(len(textbook_content), best_match_end + 1000)
         context_text = textbook_content[context_start:context_end]
     else:
         return f"Exercise '{exercise_query}' not found in textbook '{textbook_id}'."
 
-
-    prompt = f"Based on the following excerpt from a Grade 9 economics textbook, answer the review question:\n\n---\n{context_text}\n---\n\nSpecifically, answer exercise/question: '{exercise_query}'. Provide a detailed answer suitable for a Grade 9 student. If it's a True/False question, state True or False and briefly explain why. If it's multiple choice, indicate the correct option (A, B, C, or D) and explain your reasoning."
+    prompt = f"Based on the following excerpt from a Grade 9 economics textbook, answer the review question:\n\n---\n{context_text}\n---\n\nSpecifically, answer exercise/question: '{exercise_query}'."
     response = generate_content(prompt)
     return response
-
 
 def excute_command(from_id, command):
     if command == "start" or command == "help":
