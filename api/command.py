@@ -173,7 +173,7 @@ def prepare_short_note(from_id, topic, textbook_id):
     response = generate_content(prompt)
     return response
 
-"""def answer_exercise(from_id, exercise_query, textbook_id): # Renamed exercise_number to exercise_query - more flexible
+def answer_exercise(from_id, exercise_query, textbook_id): # Renamed exercise_number to exercise_query - more flexible
     #Answers an exercise from a textbook.
     textbook_content = get_textbook_content(textbook_id)
     if not textbook_content:
@@ -213,7 +213,7 @@ def prepare_short_note(from_id, topic, textbook_id):
 
     prompt = f"Based on the following excerpt from a Grade 9 economics textbook, answer the review question:\n\n---\n{context_text}\n---\n\nSpecifically, answer exercise/question: '{exercise_query}'. Provide a detailed answer suitable for a Grade 9 student. If it's a True/False question, state True or False and briefly explain why. If it's multiple choice, indicate the correct option (A, B, C, or D) and explain your reasoning."
     response = generate_content(prompt)
-    return response"""
+    return response
 
 
 def excute_command(from_id, command):
