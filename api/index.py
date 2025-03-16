@@ -55,11 +55,11 @@ def home():
             handle_message(update)
             return "ok", 200
         except Exception as e:
-        logging.error("Error handling request: %s", e)
-        # [!HIGHLIGHT!] Log the exception type and arguments (for more details)
-        logging.error(f"Exception details: Type: {type(e)}, Args: {e.args}") # ADD THIS LINE
-        return "Internal server error", 500
-    return render_template("status.html")
+            logging.error("Error handling request: %s", e)
+            # [!HIGHLIGHT!] Log the exception type and arguments (for more details)
+            logging.error(f"Exception details: Type: {type(e)}, Args: {e.args}") # ADD THIS LINE
+            return "Internal server error", 500
+    return render_template("status.html") # Corrected indentation here
 
 @app.route("/health", methods=["GET"])
 def health_check():
