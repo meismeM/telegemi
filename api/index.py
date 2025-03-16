@@ -55,7 +55,7 @@ def home():
             handle_message(update)
             return "ok", 200
         except Exception as e:
-            logging.error("Error handling request: %s", e)
+            logging.exception("Error handling request") # Best practice - logs exception info automatically
             return "Internal server error", 500
     return render_template("status.html")
 
