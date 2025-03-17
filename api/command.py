@@ -343,46 +343,40 @@ def send_message_test(id, command):
     return ""
 
 def explain_concept(from_id, concept, textbook_id):
-    """Explains a concept, using textbook context if available, otherwise general AI."""
-    textbook_content = get_textbook_content(textbook_id)
-    context_text = None
+    """Explains a concept, using textbook context with page numbers if available, otherwise general AI."""
+    concept_pages = search_concept_pages(textbook_id, concept) # Use helper function to find relevant pages
+    context_text = ""
+    page_refs = ""
 
-    if textbook_content:
-        search_term = concept
-        start_index = textbook_content.lower().find(search_term.lower())
-        if start_index != -1:
-            context_start = max(0, start_index - 500)
-            context_end = min(len(textbook_content), start_index + 1000)
-            context_text = textbook_content[context_start:context_end]
-
-    if context_text:
-        prompt = f"Explain the concept of '{concept}' based on the following excerpt from the Grade 9 textbook '{textbook_id}':\n\n---\n{context_text}\n---\n\nProvide a clear and concise explanation suitable for a Grade 9 student."
-    else:
-        prompt = f"Explain the concept of '{concept}' in a clear and concise way, suitable for a Grade 9 student." # General explanation prompt
+    if concept_pages: # If concept found in textbook
+        context_text = get_text_from_pages(textbook_id, concept_pages) # Get text from relevant pages
+        page_refs = f"(Pages: {', '.join(map(str, concept_pages))})" # Create page number reference string
+        prompt = f"Explain the concept of '{concept}' based on the following excerpt from pages {page_refs} of the Grade 9 textbook '{textbook_id}':\n\n---\n{context_text}\n---\n\nProvide a detailed and comprehensive explanation suitable for a Grade 9 student." # More detailed prompt
+    else: # If not found, use general prompt
+        prompt = f"Explain the concept of '{concept}' in detail and comprehensively, suitable for a Grade 9 student." # More detailed general prompt
+        page_refs = "(Textbook page not found)"
 
     response = generate_content(prompt)
-    return response
+    return f"{response}\n\n{page_refs}" # Append page reference to response
+
 
 def prepare_short_note(from_id, topic, textbook_id):
-    """Prepares a short note on a topic, using textbook context if available, otherwise general AI."""
-    textbook_content = get_textbook_content(textbook_id)
-    context_text = None
+    """Prepares a short note on a topic, using textbook context with page numbers if available, otherwise general AI."""
+    topic_pages = search_concept_pages(textbook_id, topic) # Use helper function to find relevant pages
+    context_text = ""
+    page_refs = ""
 
-    if textbook_content:
-        search_term = topic
-        start_index = textbook_content.lower().find(search_term.lower())
-        if start_index != -1:
-            context_start = max(0, start_index - 500)
-            context_end = min(len(textbook_content), start_index + 1000)
-            context_text = textbook_content[context_start:context_end]
-
-    if context_text:
-        prompt = f"Prepare a short, concise study note on the topic of '{topic}' based on the Grade 9 textbook '{textbook_id}'. Focus on the key points and make it easy to understand for a Grade 9 student. Limit the note to around 3-4 key points.\n\n---\n{context_text}\n---"
-    else:
-        prompt = f"Prepare a short, concise study note on the topic of '{topic}'. Focus on the key points and make it easy to understand for a Grade 9 student. Limit the note to around 3-4 key points." # General note prompt
+    if topic_pages: # If topic found in textbook
+        context_text = get_text_from_pages(textbook_id, topic_pages) # Get text from relevant pages
+        page_refs = f"(Pages: {', '.join(map(str, topic_pages))})" # Create page number reference string
+        prompt = f"Prepare a short, concise but comprehensive study note on the topic of '{topic}' based on the Grade 9 textbook '{textbook_id}', drawing from pages {page_refs}. Focus on key points and make it easy to understand for a Grade 9 student. Limit the note to around 5-6 key points if possible.\n\n---\n{context_text}\n---" # More detailed prompt
+    else: # If not found, use general prompt
+        prompt = f"Prepare a short, concise but comprehensive study note on the topic of '{topic}'. Focus on key points and make it easy to understand for a Grade 9 student. Limit the note to around 5-6 key points if possible." # More detailed general prompt
+        page_refs = "(Textbook page not found)"
 
     response = generate_content(prompt)
-    return response
+    return f"{response}\n\n{page_refs}" # Append page reference to response
+
 
 def answer_exercise(from_id, exercise_query, textbook_id):
     """Answers an exercise from a textbook."""
