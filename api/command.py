@@ -461,13 +461,13 @@ def excute_command(from_id, command):
         elif command == "list_models":
             return list_models()
 
-    elif command.startswith("explain"): # /explain concept textbook_id
+    elif command.startswith("explain"):  # /explain concept textbook_id
         parts = command.split(" ", 1)
         if len(parts) == 2:
             command_name, concept_and_textbook_id = parts
             concept_parts = concept_and_textbook_id.split()
             if concept_parts:
-                textbook_id = exercise_parts[-1] #Still using exercise_parts here - should be concept_parts! - FIXED
+                textbook_id = concept_parts[-1]  # [!CORRECTED LINE!] - Use concept_parts
                 concept = " ".join(concept_parts[:-1])
                 return explain_concept(from_id, concept, textbook_id)
             else:
@@ -475,13 +475,13 @@ def excute_command(from_id, command):
         else:
             return "Invalid command format. Use: /explain [concept] [textbook_id]"
 
-    elif command.startswith("note"): # /note topic textbook_id
+    elif command.startswith("note"):  # /note topic textbook_id
         parts = command.split(" ", 1)
         if len(parts) == 2:
             command_name, topic_and_textbook_id = parts
             topic_parts = topic_and_textbook_id.split()
             if topic_parts:
-                textbook_id = exercise_parts[-1] #Still using exercise_parts here - should be topic_parts! - FIXED
+                textbook_id = topic_parts[-1]  # [!CORRECTED LINE!] - Use topic_parts
                 topic = " ".join(topic_parts[:-1])
                 return prepare_short_note(from_id, topic, textbook_id)
             else:
