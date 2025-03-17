@@ -42,6 +42,9 @@ logging.basicConfig(level=logging.INFO)
 with app.app_context():
     load_textbook("economics9", "economics9.pdf")  # Load economics9.pdf from 'api' folder, ID "economics9"
     print("Textbooks loaded during app initialization.")
+with app.app_context():
+    load_textbook("history9", "history9.pdf")  # Load economics9.pdf from 'api' folder, ID "history9"
+    print("Textbooks loaded during app initialization.")
 
 @app.route("/", methods=["POST", "GET"])
 def home():
