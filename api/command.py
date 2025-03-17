@@ -355,7 +355,7 @@ def explain_concept(from_id, concept, textbook_id):
         return f"Concept '{concept}' not found in textbook '{textbook_id}'."
 
     context_start = max(0, start_index - 500) # Get some context before and after
-    context_end = min(len(textbook_content), start_index + 1000)
+    context_end = min(len(textbook_content), start_index + 10000)
     context_text = textbook_content[context_start:context_end]
 
     prompt = f"Explain the concept of '{concept}' based on the following excerpt from the Grade 9 textbook '{textbook_id}':\n\n---\n{context_text}\n---\n\nProvide a clear and concise explanation suitable for a Grade 9 student."
