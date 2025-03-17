@@ -66,7 +66,7 @@ def load_textbook(textbook_id, filename):
 
             TEXTBOOKS[textbook_id] = text_content
             print(f"Textbook '{textbook_id}' loaded successfully from '{filepath}'. Total characters extracted: {len(text_content)}")
-            print(f"First 1000 chars of '{textbook_id}': {text_content[:1000]}") # Increased to 1000 chars
+            print(f"First 100000 chars of '{textbook_id}': {text_content[:100000]}") # Increased to 1000 chars
 
     except FileNotFoundError: # Catch FileNotFoundError explicitly for clarity
         print(f"ERROR: File not found at path: '{filepath}' (FileNotFoundError)")
