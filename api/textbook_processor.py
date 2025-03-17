@@ -31,47 +31,44 @@ def get_textbook_content(textbook_id):
 """
 # api/textbook_processor.py
 import PyPDF2
-import os # Import the 'os' module
 
 TEXTBOOKS = {}
 
 def load_textbook(textbook_id, filename):
     try:
         filepath = f"api/{filename}"
-
-        # [!NEW LOGGING!] Check if the file exists before opening
-        print(f"Attempting to load textbook '{textbook_id}' from path: '{filepath}'")
-        if not os.path.exists(filepath):
-            print(f"ERROR: File '{filepath}' does not exist!") # Log if file is not found
-            return # Exit function if file not found
-
         with open(filepath, 'rb') as pdf_file:
-            print(f"File '{filepath}' opened successfully.") # Log if file opens
-
             pdf_reader = PyPDF2.PdfReader(pdf_file)
-            text_content = ""
-            num_pages = len(pdf_reader.pages) # Get number of pages
-            print(f"PDF file has {num_pages} pages.") # Log page count
-
-            for page_num in range(num_pages):
-                try: # Add try-except inside the loop for page extraction
-                    page = pdf_reader.pages[page_num]
-                    page_text = page.extract_text()
-                    if page_text: # Only append if text is extracted
-                        text_content += page_text
-                    else:
-                        print(f"Warning: No text extracted from page {page_num + 1}") # Warn if page is empty
-                except Exception as page_e:
-                    print(f"Error extracting text from page {page_num + 1}: {page_e}") # Log page extraction errors
-
-            TEXTBOOKS[textbook_id] = text_content
-            print(f"Textbook '{textbook_id}' loaded successfully from '{filepath}'. Total characters extracted: {len(text_content)}")
-            print(f"First 1000 chars of '{textbook_id}': {text_content[:1000]}") # Increased to 1000 chars
-
-    except FileNotFoundError: # Catch FileNotFoundError explicitly for clarity
-        print(f"ERROR: File not found at path: '{filepath}' (FileNotFoundError)")
+            pages_content = [] # List to store page content as dictionaries
+            for page_num in range(len(pdf_reader.pages)):
+                page = pdf_reader.pages[page_num]
+                text_content = page.extract_text()
+                pages_content.append({"page_number": page_num + 1, "text": text_content}) # Store page number and text
+            TEXTBOOKS[textbook_id] = pages_content # Store list of pages
+            print(f"Textbook '{textbook_id}' loaded successfully from '{filepath}' with page-wise content.")
     except Exception as e:
         print(f"Error loading textbook '{textbook_id}': {e}")
 
-def get_textbook_content(textbook_id):
+def get_textbook_content(textbook_id): # Modified to return list of pages
     return TEXTBOOKS.get(textbook_id)
+
+def get_text_from_pages(textbook_id, page_numbers): # Helper function to get combined text from specific pages
+    textbook_pages = get_textbook_content(textbook_id)
+    if not textbook_pages:
+        return ""
+    combined_text = ""
+    for page_data in textbook_pages:
+        if page_data["page_number"] in page_numbers:
+            combined_text += page_data["text"] + "\n\n" # Add page text and separators
+    return combined_text
+
+def search_concept_pages(textbook_id, concept): # Helper function to find pages containing a concept
+    textbook_pages = get_textbook_content(textbook_id)
+    if not textbook_pages:
+        return [] # Return empty list if no textbook
+
+    concept_pages = []
+    for page_data in textbook_pages:
+        if concept.lower() in page_data["text"].lower():
+            concept_pages.append(page_data["page_number"]) # Add page number if concept found
+    return concept_pages
