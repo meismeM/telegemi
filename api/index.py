@@ -40,9 +40,14 @@ logging.basicConfig(level=logging.INFO)
 
 # [!HIGHLIGHT!] Textbook loading section in app initialization
 with app.app_context():
-    load_textbook("economics9", "economics9.pdf")
-    load_textbook("history9", "history9.pdf")
-    print("Textbooks loaded during app initialization.")
+    print("Starting textbook loading during app initialization...") # Added start log
+    try:
+        load_textbook("economics9", "economics9.pdf")
+        load_textbook("history9", "history9.pdf")
+        print("Textbooks loaded successfully during app initialization.") # Success log
+    except Exception as e:
+        print(f"ERROR: Textbook loading failed during app initialization: {e}") # Error log with exception
+    print("Textbook loading process completed (see messages above for status).") # Completion log
 
 @app.route("/", methods=["POST", "GET"])
 def home():
