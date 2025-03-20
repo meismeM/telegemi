@@ -25,7 +25,7 @@ def home():
 
 @app.route("/health", methods=["GET"])
 def health_check():
-    return {"status": "ok"}, 200"""
+    return {"status": "ok"}, 200
 
 # api/index.py
 from flask import Flask, render_template, request
@@ -66,6 +66,41 @@ def home():
             logging.error(f"Exception details: Type: {type(e)}, Args: {e.args}") # ADD THIS LINE
             return "Internal server error", 500
     return render_template("status.html") # Corrected indentation here
+
+@app.route("/health", methods=["GET"])
+def health_check():
+    return {"status": "ok"}, 200"""
+
+# api/index.py
+from flask import Flask, render_template, request
+from .handle import handle_message
+import logging
+from .textbook_processor import load_textbook # Import load_textbook (though not directly used here anymore)
+
+app = Flask(__name__)
+
+# Configure logging
+logging.basicConfig(level=logging.INFO)
+
+# [!HIGHLIGHT!] REMOVED textbook loading from here - now lazy loaded
+
+@app.route("/", methods=["POST", "GET"])
+def home():
+    # ... (rest of your home function - no changes needed here) ...
+    if request.method == "POST":
+        try:
+            update = request.json
+            logging.info("Received update: %s", update)
+            if not update or "update_id" not in update:
+                logging.warning("Invalid or incomplete update: %s", update)
+                return "Invalid request data", 400
+            handle_message(update)
+            return "ok", 200
+        except Exception as e:
+            logging.error("Error handling request: %s", e)
+            logging.error(f"Exception details: Type: {type(e)}, Args: {e.args}")
+            return "Internal server error", 500
+    return render_template("status.html")
 
 @app.route("/health", methods=["GET"])
 def health_check():
