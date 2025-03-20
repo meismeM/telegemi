@@ -21,7 +21,7 @@ AUCH_ENABLE = os.getenv("AUCH_ENABLE", "0")
 
 """ read https://ai.google.dev/api/rest/v1/GenerationConfig """
 generation_config = {
-    "max_output_tokens": 65536,
+    "max_output_tokens": 16384,
 }
 
 """ read https://ai.google.dev/api/rest/v1/HarmCategory """
