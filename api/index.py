@@ -25,7 +25,7 @@ def home():
 
 @app.route("/health", methods=["GET"])
 def health_check():
-    return {"status": "ok"}, 200
+    return {"status": "ok"}, 200"""
 
 # api/index.py
 from flask import Flask, render_template, request
@@ -69,7 +69,8 @@ def home():
 
 @app.route("/health", methods=["GET"])
 def health_check():
-    return {"status": "ok"}, 200"""
+    return {"status": "ok"}, 200
+    """
 # api/index.py
 from flask import Flask, render_template, request
 from .handle import handle_message
