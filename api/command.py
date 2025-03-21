@@ -300,7 +300,7 @@ debug_mode_info = "Debug mode is not enabled!"
 
 def help():
     help_text = "Welcome to Gemini 2.0 flash AI! Interact through text or images and experience insightful answers. Unlock the power of AI-driven communication – every message is a chance for a smarter exchange. Send text or image!\n Experience the power of AI-driven communication through insightful answers, text, or images. \n👾 Features \n Answer any question, even challenging or strange ones. \n ⏩ Generate creative text formats like poems, scripts, code, emails, and more. \n ⏩ Translate languages effortlessly. \n ⏩ Simplify complex concepts with clear explanations. \n ⏩  Perform math and calculations. \n ⏩ Assist with research and creative content generation. \n ⏩ Provide fun with word games, quizzes, and much more!\n ⏩ Send a text or image and unlock smarter exchanges. Don’t forget to join the channels below for more: And most importantly join the channels:  \n [Channel 1](https://t.me/+gOUK4JnBcCtkYWQ8) \n [Channel 2](https://t.me/telegemin). \n ወደ ጀሚኒ 1.5 ፕሮ አርቴፊሻል ኢንተለጀንስ እንኳን ደህና መጡ! ድንቅ 3 ከፍተኛ ተጠቃሚዎች ያሉት ጎግል AI ፣ እኔ እዚህ ስፍር ቁጥር በሌላቸው መንገዶች ልረዳችሁ የምችል የአርቴፊሻል ኢንተለጀንስ ቻት ቦት ነኝ። በአስተዋይ መልሶች፣ በጽሑፍ ወይም በምስሎች የአርቴፊሻል ኢንተለጀንስ የተጎላበተ የግንኙነት ይለማመዱ። \n \n ⏩ ማንኛውንም ጥያቄ፣ ፈታኝ ወይም እንግዳ የሆኑትንም እንኳ መልስ ያግኙ። \n ⏩ እንደ ግጥም፣ ስክሪፕት፣ ኮድ፣ ኢሜይሎች እና ሌሎችም ያሉ የፈጠራ ጽሑፎችን ይፍጠሩ። \n ⏩ ቋንቋዎችን በቀላሉ መተርጎም። \n ⏩ ውስብስብ ጽንሰ-ሐሳቦችን በግልጽ ማብራራት። \n ⏩ የሂሳብ ስሌቶችን መስራት። \n ⏩ በምርምር እና በፈጠራ ይዘት ያላቸው ፅሁፎች። \n ⏩ በቃላት ጨዋታዎች፣ ጥያቄዎች እና በብዙ ተጨማሪ ነገሮች ይዝናኑ!\n ⏩ ጽሑፍ ወይም ምስል ይላኩ እና መልስ ያግኙ። ለተጨማሪ መረጃ ከታች ባሉት ቻናሎች መቀላቀልዎን አይርሱ።"
-    command_list = "/new - Start new chat\n/explain [concept] [textbook_id] - Explain a concept from textbook\n/note [topic] [textbook_id] - Prepare short note on a topic\n/answer [exercise_query] [textbook_id] - Answer exercise (WIP)"
+    command_list = "/new - Start new chat\n/explain [concept] [textbook_id] - Explain a concept from textbook\n/note [topic] [textbook_id] - Prepare short note on a topic"
     result = f"{help_text}\n\n{command_list}"
     return result
 
@@ -377,7 +377,7 @@ def prepare_short_note(from_id, topic, textbook_id):
     response = generate_content(prompt)
     return f"{response}\n\n{page_refs}" # Append page reference to response
 
-def answer_exercise(from_id, exercise_query, textbook_id):
+'''def answer_exercise(from_id, exercise_query, textbook_id):
     """Answers an exercise from a textbook."""
     textbook_content = get_textbook_content(textbook_id)
     if not textbook_content:
@@ -436,7 +436,7 @@ def answer_exercise(from_id, exercise_query, textbook_id):
 
     prompt = f"Based on the following excerpt from a Grade 9 economics textbook, answer the review question:\n\n---\n{context_text}\n---\n\nSpecifically, answer exercise/question: '{exercise_query}'."
     response = generate_content(prompt)
-    return response
+    return response'''
 
 def excute_command(from_id, command):
     if command == "start" or command == "help":
