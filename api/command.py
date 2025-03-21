@@ -489,7 +489,7 @@ def excute_command(from_id, command):
         else:
             return "Invalid command format. Use: /note [topic] [textbook_id]"
 
-    elif command.startswith("answer"):
+    '''elif command.startswith("answer"):
         parts = command.split(" ", 1) # Split only once at the first space
         if len(parts) == 2:
             command_name, exercise_and_textbook_id = parts
@@ -505,7 +505,7 @@ def excute_command(from_id, command):
             else:
                 return "Invalid command format. Use: /answer [exercise_query] [textbook_id]"
         else:
-            return "Invalid command format. Use: /answer [exercise_query] [textbook_id]"
+            return "Invalid command format. Use: /answer [exercise_query] [textbook_id]"'''
 
     else:
         result = "Invalid command, use /help for help"
