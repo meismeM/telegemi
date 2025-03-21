@@ -351,7 +351,7 @@ def explain_concept(from_id, concept, textbook_id):
     if concept_pages: # If concept found in textbook
         context_text = get_text_from_pages(textbook_id, concept_pages) # Get text from relevant pages
         page_refs = f"(Pages: {', '.join(map(str, concept_pages))})" # Create page number reference string
-        prompt = f"Explain the concept of '{concept}' based on the following excerpt from pages {page_refs} of the Grade 9 textbook '{textbook_id}':\n\n---\n{context_text}\n---\n\nProvide a comprehensive explanation suitable for a Grade 9 student." # More detailed prompt
+        prompt = f"Explain the concept of '{concept}' based on the following excerpt from pages {page_refs} of the Grade 9 textbook '{textbook_id}':\n\n---\n{context_text}\n---\n\nProvide a detail and comprehensive explanation suitable for a Grade 9 student." # More detailed prompt
     else: # If not found, use general prompt
         prompt = f"Explain the concept of '{concept}' in detail and comprehensively, suitable for a Grade 9 student." # More detailed general prompt
         page_refs = "(Textbook page not found)"
