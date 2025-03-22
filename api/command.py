@@ -570,7 +570,7 @@ def send_message_test(id, command):
     send_log("success")
     return ""
 
-def explain_concept(from_id, concept, textbook_id):
+'''def explain_concept(from_id, concept, textbook_id):
     """Explains a concept, using textbook context with page numbers if available, otherwise general AI."""
     concept_pages = search_concept_pages(textbook_id, concept) # Use helper function to find relevant pages
     context_text = ""
@@ -585,7 +585,31 @@ def explain_concept(from_id, concept, textbook_id):
         page_refs = "(Textbook page not found)"
 
     response = generate_content(prompt)
-    return f"{response}\n\n{page_refs}" # Append page reference to response
+    return f"{response}\n\n{page_refs}" # Append page reference to response'''
+def explain_concept(from_id, concept, textbook_id):
+    """Explains a concept, using textbook context with page numbers and streaming response."""
+    concept_pages = search_concept_pages(textbook_id, concept)
+    context_text = ""
+    page_refs = ""
+
+    if concept_pages:
+        context_text = get_text_from_pages(textbook_id, concept_pages)
+        page_refs = f"(Pages: {', '.join(map(str, concept_pages))})"
+        prompt = f"Explain the concept of '{concept}' based on the following excerpt from pages {page_refs} of the Grade 9 textbook '{textbook_id}':\n\n---\n{context_text}\n---\n\nProvide a detailed and comprehensive explanation suitable for a Grade 9 student."
+    else:
+        prompt = f"Explain the concept of '{concept}' in detail and comprehensively, suitable for a Grade 9 student."
+        page_refs = "(Textbook page not found)"
+
+    # [!HIGHLIGHT!] Use generate_content_stream instead of generate_content
+    response_stream = generate_content_stream(prompt) # Get a stream of response chunks
+
+    full_response = "" # Accumulate full response text for page refs and return
+    for chunk_text in response_stream: # Iterate through response chunks
+        if chunk_text: # Check if chunk is not empty (error message might be empty)
+            send_message(from_id, chunk_text) # Send each chunk as a Telegram message
+            full_response += chunk_text # Accumulate for final response
+
+    return f"{full_response}\n\n{page_refs}" # Append page reference to the accumulated response
 
 
 def prepare_short_note(from_id, topic, textbook_id):
