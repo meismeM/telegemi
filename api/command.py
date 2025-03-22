@@ -614,11 +614,12 @@ def explain_concept(from_id, concept, textbook_id):
 
 
 def explain_concept(from_id, concept, textbook_id):
-    """Explains concept with streaming, using time-based chunk buffering."""
-   # ... (rest of explain_concept code - textbook lookup, prompt creation, etc. - no changes) ...
+    """Explains concept with streaming, using time-based chunk buffering and robust error handling."""
     concept_pages = search_concept_pages(textbook_id, concept)
     context_text = ""
     page_refs = ""
+    prompt = ""  # Initialize prompt 
+    full_response = "" # [!HIGHLIGHT!] Initialize full_response *outside* the loop
 
     if concept_pages:
         context_text = get_text_from_pages(textbook_id, concept_pages)
@@ -630,27 +631,20 @@ def explain_concept(from_id, concept, textbook_id):
 
     response_stream = generate_content_stream(prompt)
 
-    buffered_message = "" # Buffer to accumulate chunks
-    last_chunk_time = time.time() # Track time of last chunk sent
+    last_chunk_time = time.time()
 
-    for chunk_text in response_stream:
-        if chunk_text:
-            buffered_message += chunk_text # Accumulate chunk text
+    try: # [!HIGHLIGHT!] Add try-except block around streaming loop for robustness
+        for chunk_text in response_stream:
+            if chunk_text:
+                send_message(from_id, chunk_text)
+                full_response += chunk_text
 
-        current_time = time.time()
-        time_since_last_chunk = current_time - last_chunk_time
+    except Exception as e: # [!HIGHLIGHT!] Error handling for streaming errors
+        error_message = f"Error during streaming response from Gemini: {e}"
+        send_message(from_id, error_message)
+        return error_message  # Return error message, don't try to send page_refs
 
-        # [!HIGHLIGHT!] Buffer and send logic
-        if len(buffered_message) > 2000 or time_since_last_chunk >= 3: # Send if buffer is long enough or time elapsed
-            send_message(from_id, buffered_message) # Send buffered message
-            buffered_message = "" # Clear buffer
-            last_chunk_time = current_time # Update last chunk time
-
-    # Send any remaining buffered text after the stream is finished
-    if buffered_message:
-        send_message(from_id, buffered_message)
-
-    return f"{full_response}\n\n{page_refs}" # Append page reference
+    return f"{full_response}\n\n{page_refs}" # Append page reference to the accumulated response (full_response is now always defined)
 
 
 def prepare_short_note(from_id, topic, textbook_id):
