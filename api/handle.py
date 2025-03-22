@@ -71,44 +71,49 @@ def handle_message(update_data):
     
     elif update.type == "text":
         chat = chat_manager.get_chat(update.from_id)
-        response_stream = chat.send_message(update.text) # Get streaming response from ChatConversation [!CHANGED!]
+        response_stream = chat.send_message(update.text) 
 
-        buffered_message = ""  # Buffer for chunks [!HIGHLIGHT!]
-        last_chunk_time = time.time() # Track last chunk send time [!HIGHLIGHT!]
-        full_response = "" # Accumulate full response for logging
+        buffered_message = ""  
+        last_chunk_time = time.time() 
+        full_response = "" 
+        # [!HIGHLIGHT!] Define message_id here for text messages
+        message_id = update.message_id # Get message_id from the update object
 
         try:
-            for chunk_text in response_stream: # Iterate through response chunks
+            for chunk_text in response_stream: 
                 if chunk_text:
                     buffered_message += chunk_text
-                    full_response += chunk_text # Accumulate full response
+                    full_response += chunk_text 
 
                 current_time = time.time()
                 time_since_last_chunk = current_time - last_chunk_time
 
-                if len(buffered_message) > 2000 or time_since_last_chunk >= 3: # [!HIGHLIGHT!] Chunk buffering condition - ADJUST BUFFER SIZE AND DELAY AS NEEDED
-                    send_message(update.from_id, buffered_message)
-                    buffered_message = ""
+                if len(buffered_message) > 5000 or time_since_last_chunk >= 5: 
+                    send_message(update.from_id, buffered_message) 
+                    buffered_message = "" 
                     last_chunk_time = current_time
-                    time.sleep(0.1) # Optional throttling delay - ADJUST DELAY AS NEEDED
 
         except Exception as e:
             error_message = f"Error during streaming response for general chat: {e}"
             send_message(update.from_id, error_message)
             return # Exit handler on error
 
-        if buffered_message: # Send any remaining buffered text after stream completes [!HIGHLIGHT!]
+        if buffered_message: 
             send_message(update.from_id, buffered_message)
 
-
-        extra_text = "\n\nType /new to kick off a new chat." if chat.history_length > 5 else ""
-        response_text = f"{full_response}{extra_text}"  # Reassemble for logging and admin approval - no changes needed here
+        extra_text = "\n\nType /new to kick off a new chat." if chat.history_length > 10 else ""
+        response_text = f"{full_response}{extra_text}"  # Reassemble for logging and admin approval
+        
+        pending_approvals[message_id] = { # [!FIXED! - message_id is now defined]
+            "from_id": update.from_id,
+            "text": update.text,
+            "response_text": response_text
+        }
         # Notify the admin (with formatted message and without username)
         send_message(
             ADMIN_ID,
             f"New message:\n\nMessage: {update.text}\nReply: {response_text}\n\nTo approve, reply with /approve {message_id}\nTo deny, reply with /deny {message_id}"
         )
-
     elif update.type == "photo":
         chat = ImageChatManger(update.photo_caption, update.file_id)
         response_text = chat.send_image()
