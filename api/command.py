@@ -641,7 +641,7 @@ def explain_concept(from_id, concept, textbook_id):
         time_since_last_chunk = current_time - last_chunk_time
 
         # [!HIGHLIGHT!] Buffer and send logic
-        if len(buffered_message) > 500 or time_since_last_chunk >= 0.3: # Send if buffer is long enough or time elapsed
+        if len(buffered_message) > 2000 or time_since_last_chunk >= 3: # Send if buffer is long enough or time elapsed
             send_message(from_id, buffered_message) # Send buffered message
             buffered_message = "" # Clear buffer
             last_chunk_time = current_time # Update last chunk time
