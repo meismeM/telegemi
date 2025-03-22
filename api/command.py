@@ -669,7 +669,7 @@ def create_questions(from_id, concept, textbook_id):
     if concept_pages: # If concept found in textbook
         context_text = get_text_from_pages(textbook_id, concept_pages)
         page_refs = f"(Pages: {', '.join(map(str, concept_pages))})"
-        prompt = f"Generate 5-7 review questions about the concept of '{concept}' based on the following excerpt from pages {page_refs} of the Grade 9 textbook '{textbook_id}':\n\n---\n{context_text}\n---\n\nThese questions should be suitable for Grade 9 students to test their understanding of the concept. Include a variety of question types (e.g., multiple choice, true/false, short answer) if appropriate for the concept." # Modified prompt to generate questions
+        prompt = f"Generate 5-10 review questions about the concept of '{concept}' based on the following excerpt from pages {page_refs} of the Grade 9 textbook '{textbook_id}':\n\n---\n{context_text}\n---\n\nThese questions should be suitable for Grade 9 students to test their understanding of the concept. Include a variety of question types (e.g., multiple choice, true/false, short answer) if appropriate for the concept." # Modified prompt to generate questions
     else: # If not found, use general prompt (less textbook-specific questions)
         prompt = f"Generate 5-7 review questions about the concept of '{concept}'. These questions should be suitable for Grade 9 students and cover the key aspects of this concept. Include a variety of question types (e.g., multiple choice, true/false, short answer) if appropriate." # Modified prompt for general questions
         page_refs = "(Textbook page not found)"
@@ -834,6 +834,23 @@ def excute_command(from_id, command):
                 return "Invalid command format. Use: /note [topic] [textbook_id]"
         else:
             return "Invalid command format. Use: /note [topic] [textbook_id]"
+
+          
+    elif command.startswith("create_questions"): # /create_questions concept textbook_id
+        parts = command.split(" ", 1) # Split only once at the first space
+        if len(parts) == 2: # Now we expect 2 parts: command and the rest
+            command_name, concept_and_textbook_id = parts # The rest is concept + textbook_id
+            concept_parts = concept_and_textbook_id.split() # Split the rest by spaces again
+            if concept_parts: # Check if there's anything after 'explain'
+                textbook_id = concept_parts[-1] # Assume textbook_id is the last word
+                concept = " ".join(concept_parts[:-1]) # Join the rest as concept phrase
+                return "Invalid command format. Use: /create_questions [concept] [textbook_id]"
+            else:
+                return "Invalid command format. Use: /create_questions [concept] [textbook_id]"
+        else:
+            return "Invalid command format. Use: /create_questions [concept] [textbook_id]"
+
+    
     else:
         result = "Invalid command, use /help for help"
         return result 
