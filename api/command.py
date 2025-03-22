@@ -283,7 +283,7 @@ def excute_command(from_id, command):
 
         
 Let advance other commands and there output to have good result but general request 
-"""
+"""'''
 from time import sleep
 
 import google.generativeai as genai
@@ -377,7 +377,7 @@ def prepare_short_note(from_id, topic, textbook_id):
     response = generate_content(prompt)
     return f"{response}\n\n{page_refs}" # Append page reference to response
 
-'''def answer_exercise(from_id, exercise_query, textbook_id):
+def answer_exercise(from_id, exercise_query, textbook_id):
     """Answers an exercise from a textbook."""
     textbook_content = get_textbook_content(textbook_id)
     if not textbook_content:
