@@ -89,7 +89,7 @@ def handle_message(update_data):
                 time_since_last_chunk = current_time - last_chunk_time
     
                 # [!HIGHLIGHT!] More explicit buffer flush logic and logging
-                if len(buffered_message) > 5000 or time_since_last_chunk >= 5: 
+                if len(buffered_message) > 2000 or time_since_last_chunk >= 4: 
                     message_to_send = buffered_message # Store buffer content in a separate variable
                     buffered_message = "" # Clear buffer IMMEDIATELY before sending
                     send_message(update.from_id, message_to_send) # Send the buffered message
