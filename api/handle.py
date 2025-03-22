@@ -113,12 +113,12 @@ def handle_message(update_data):
             send_message(update.from_id, buffered_message)
             send_message(
             ADMIN_ID,
-            f"New message:\n\nMessage: {update.text}\nReply: {message_to_send}\n\nTo approve, reply with /approve {message_id}\nTo deny, reply with /deny {message_id}"
+            f"New message:\n\nMessage: {update.text}\nReply: {buffered_message}\n\nTo approve, reply with /approve {message_id}\nTo deny, reply with /deny {message_id}"
         )
             print("send_message() called - remaining buffer (last chunk)") # [!LOGGING!] Log for remaining buffer send
         if buffered_message: 
             send_message(update.from_id, full_response)
-            send_message(ADMIN_ID,f"New message:\n\nMessage: {update.text}\nReply: {message_to_send}\n\nTo approve, reply with /approve {message_id}\nTo deny, reply with /deny {message_id}")
+            send_message(ADMIN_ID,f"New message:\n\nMessage: {update.text}\nReply: {full_response}\n\nTo approve, reply with /approve {message_id}\nTo deny, reply with /deny {message_id}")
 
         extra_text = "\n\nType /new to kick off a new chat." if chat.history_length > 10 else ""
         response_text = f"{full_response}{extra_text}"  # Reassemble for logging and admin approval
