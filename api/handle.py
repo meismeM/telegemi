@@ -88,7 +88,7 @@ def handle_message(update_data):
                 current_time = time.time()
                 time_since_last_chunk = current_time - last_chunk_time
 
-                if len(buffered_message) > 5000 or time_since_last_chunk >= 5: 
+                if len(buffered_message) > 4000 or time_since_last_chunk >= 5: 
                     send_message(update.from_id, buffered_message) 
                     buffered_message = "" 
                     last_chunk_time = current_time
