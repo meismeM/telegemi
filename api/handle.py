@@ -92,7 +92,7 @@ def handle_message(update_data):
                 if len(buffered_message) > 2000 or time_since_last_chunk >= 3: 
                     message_to_send = buffered_message # Store buffer content in a separate variable
                     buffered_message = "" # Clear buffer IMMEDIATELY before sending
-                    send_message(from_id, message_to_send) # Send the buffered message
+                    send_message(update.from_id, message_to_send) # Send the buffered message
                     print(f"send_message() called - chunk (first 50 chars): {message_to_send[:50]}...") # [!LOGGING!] Log when a chunk is sent
                     last_chunk_time = current_time
                     time.sleep(0.1) # Optional throttling delay
