@@ -521,7 +521,7 @@ from .config import ALLOWED_USERS,IS_DEBUG_MODE,GOOGLE_API_KEY
 from .printLog import send_log
 from .telegram import send_message
 from .textbook_processor import get_textbook_content, search_concept_pages, get_text_from_pages
-from .gemini import generate_content
+from .gemini import generate_content, generate_content_stream # Add generate_content_stream to import
 
 admin_auch_info = "You are not the administrator or your administrator ID is set incorrectly!!!"
 debug_mode_info = "Debug mode is not enabled!"
