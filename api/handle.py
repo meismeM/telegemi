@@ -78,26 +78,33 @@ def handle_message(update_data):
         full_response = "" 
         # [!HIGHLIGHT!] Define message_id here for text messages
         message_id = update.message_id # Get message_id from the update object
-
+    
         try:
-            for chunk_text in response_stream: 
+            for chunk_text in response_stream:
                 if chunk_text:
                     buffered_message += chunk_text
-                    full_response += chunk_text 
-
+                    full_response += chunk_text
+    
                 current_time = time.time()
                 time_since_last_chunk = current_time - last_chunk_time
-
-                if len(buffered_message) > 4000 or time_since_last_chunk >= 5: 
-                    send_message(update.from_id, buffered_message) 
-                    buffered_message = "" 
+    
+                # [!HIGHLIGHT!] More explicit buffer flush logic and logging
+                if len(buffered_message) > 2000 or time_since_last_chunk >= 3: 
+                    message_to_send = buffered_message # Store buffer content in a separate variable
+                    buffered_message = "" # Clear buffer IMMEDIATELY before sending
+                    send_message(from_id, message_to_send) # Send the buffered message
+                    print(f"send_message() called - chunk (first 50 chars): {message_to_send[:50]}...") # [!LOGGING!] Log when a chunk is sent
                     last_chunk_time = current_time
+                    time.sleep(0.1) # Optional throttling delay
 
         except Exception as e:
             error_message = f"Error during streaming response for general chat: {e}"
             send_message(update.from_id, error_message)
             return # Exit handler on error
-
+    # Send any remaining buffered text after the stream is finished
+        if buffered_message:
+            send_message(update.from_id, buffered_message)
+            print("send_message() called - remaining buffer (last chunk)") # [!LOGGING!] Log for remaining buffer send
         if buffered_message: 
             send_message(update.from_id, buffered_message)
 
