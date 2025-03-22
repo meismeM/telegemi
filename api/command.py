@@ -513,7 +513,7 @@ def excute_command(from_id, command):
 
   # api/command.py
 from time import sleep
-
+import time # Import time module for sleep
 import google.generativeai as genai
 
 from .auth import is_admin
@@ -585,7 +585,7 @@ def send_message_test(id, command):
         page_refs = "(Textbook page not found)"
 
     response = generate_content(prompt)
-    return f"{response}\n\n{page_refs}" # Append page reference to response'''
+    return f"{response}\n\n{page_refs}" # Append page reference to response
 def explain_concept(from_id, concept, textbook_id):
     """Explains a concept, using textbook context with page numbers and streaming response."""
     concept_pages = search_concept_pages(textbook_id, concept)
@@ -609,7 +609,37 @@ def explain_concept(from_id, concept, textbook_id):
             send_message(from_id, chunk_text) # Send each chunk as a Telegram message
             full_response += chunk_text # Accumulate for final response
 
-    return f"{full_response}\n\n{page_refs}" # Append page reference to the accumulated response
+    return f"{full_response}\n\n{page_refs}" # Append page reference to the accumulated response'''
+
+
+
+def explain_concept(from_id, concept, textbook_id):
+    """Explains concept with streaming, using time-based chunk buffering."""
+    # ... (rest of explain_concept code - textbook lookup, prompt creation, etc. - no changes) ...
+
+    response_stream = generate_content_stream(prompt)
+
+    buffered_message = "" # Buffer to accumulate chunks
+    last_chunk_time = time.time() # Track time of last chunk sent
+
+    for chunk_text in response_stream:
+        if chunk_text:
+            buffered_message += chunk_text # Accumulate chunk text
+
+        current_time = time.time()
+        time_since_last_chunk = current_time - last_chunk_time
+
+        # [!HIGHLIGHT!] Buffer and send logic
+        if len(buffered_message) > 500 or time_since_last_chunk >= 0.3: # Send if buffer is long enough or time elapsed
+            send_message(from_id, buffered_message) # Send buffered message
+            buffered_message = "" # Clear buffer
+            last_chunk_time = current_time # Update last chunk time
+
+    # Send any remaining buffered text after the stream is finished
+    if buffered_message:
+        send_message(from_id, buffered_message)
+
+    return f"{full_response}\n\n{page_refs}" # Append page reference
 
 
 def prepare_short_note(from_id, topic, textbook_id):
