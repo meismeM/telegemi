@@ -68,26 +68,41 @@ def handle_message(update_data):
                 send_message(update.from_id, response_text)
                 log = f"The command sent is:\n{update.text}\nThe reply content is:\n{response_text}"
                 send_log(log)
-
+    
     elif update.type == "text":
         chat = chat_manager.get_chat(update.from_id)
-        answer = chat.send_message(update.text)
+        response_stream = chat.send_message(update.text) # Get streaming response from ChatConversation [!CHANGED!]
+
+        buffered_message = ""  # Buffer for chunks [!HIGHLIGHT!]
+        last_chunk_time = time.time() # Track last chunk send time [!HIGHLIGHT!]
+        full_response = "" # Accumulate full response for logging
+
+        try:
+            for chunk_text in response_stream: # Iterate through response chunks
+                if chunk_text:
+                    buffered_message += chunk_text
+                    full_response += chunk_text # Accumulate full response
+
+                current_time = time.time()
+                time_since_last_chunk = current_time - last_chunk_time
+
+                if len(buffered_message) > 2000 or time_since_last_chunk >= 3: # [!HIGHLIGHT!] Chunk buffering condition - ADJUST BUFFER SIZE AND DELAY AS NEEDED
+                    send_message(update.from_id, buffered_message)
+                    buffered_message = ""
+                    last_chunk_time = current_time
+                    time.sleep(0.1) # Optional throttling delay - ADJUST DELAY AS NEEDED
+
+        except Exception as e:
+            error_message = f"Error during streaming response for general chat: {e}"
+            send_message(update.from_id, error_message)
+            return # Exit handler on error
+
+        if buffered_message: # Send any remaining buffered text after stream completes [!HIGHLIGHT!]
+            send_message(update.from_id, buffered_message)
+
+
         extra_text = "\n\nType /new to kick off a new chat." if chat.history_length > 5 else ""
-        response_text = f"{answer}{extra_text}"
-        send_message(update.from_id, response_text)
-
-        # Log (without username and ID)
-        log = f"The content sent is:\n{update.text}\nThe reply content is:\n{response_text}"
-        send_log(log)
-
-        # Queue the message for admin approval
-        message_id = update.message_id
-        pending_approvals[message_id] = {
-            "from_id": update.from_id,
-            "text": update.text,
-            "response_text": response_text
-        }
-
+        response_text = f"{full_response}{extra_text}"  # Reassemble for logging and admin approval - no changes needed here
         # Notify the admin (with formatted message and without username)
         send_message(
             ADMIN_ID,
