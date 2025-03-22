@@ -618,8 +618,8 @@ def explain_concept(from_id, concept, textbook_id):
     concept_pages = search_concept_pages(textbook_id, concept)
     context_text = ""
     page_refs = ""
-    prompt = ""  # Initialize prompt 
-    full_response = "" # [!HIGHLIGHT!] Initialize full_response *outside* the loop
+    prompt = ""
+    full_response = ""  # Initialize full_response
 
     if concept_pages:
         context_text = get_text_from_pages(textbook_id, concept_pages)
@@ -631,21 +631,33 @@ def explain_concept(from_id, concept, textbook_id):
 
     response_stream = generate_content_stream(prompt)
 
+    buffered_message = ""
     last_chunk_time = time.time()
 
-    try: # [!HIGHLIGHT!] Add try-except block around streaming loop for robustness
+    try:
         for chunk_text in response_stream:
             if chunk_text:
-                send_message(from_id, chunk_text)
-                full_response += chunk_text
+                buffered_message += chunk_text
+                full_response += chunk_text # [!HIGHLIGHT!] Accumulate full_response here!
 
-    except Exception as e: # [!HIGHLIGHT!] Error handling for streaming errors
+            current_time = time.time()
+            time_since_last_chunk = current_time - last_chunk_time
+
+            if len(buffered_message) > 2000 or time_since_last_chunk >= 3:
+                send_message(from_id, buffered_message)
+                buffered_message = ""
+                last_chunk_time = current_time
+
+    except Exception as e:
         error_message = f"Error during streaming response from Gemini: {e}"
         send_message(from_id, error_message)
-        return error_message  # Return error message, don't try to send page_refs
+        return error_message
 
-    return f"{full_response}\n\n{page_refs}" # Append page reference to the accumulated response (full_response is now always defined)
+    # Send any remaining buffered text
+    if buffered_message:
+        send_message(from_id, buffered_message)
 
+    return f"{full_response}\n\n{page_refs}" # Append page reference to the accumulated response
 
 def prepare_short_note(from_id, topic, textbook_id):
     """Prepares a short note on a topic, using textbook context with page numbers if available, otherwise general AI."""
