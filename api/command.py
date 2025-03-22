@@ -615,7 +615,18 @@ def explain_concept(from_id, concept, textbook_id):
 
 def explain_concept(from_id, concept, textbook_id):
     """Explains concept with streaming, using time-based chunk buffering."""
-    # ... (rest of explain_concept code - textbook lookup, prompt creation, etc. - no changes) ...
+   # ... (rest of explain_concept code - textbook lookup, prompt creation, etc. - no changes) ...
+    concept_pages = search_concept_pages(textbook_id, concept)
+    context_text = ""
+    page_refs = ""
+
+    if concept_pages:
+        context_text = get_text_from_pages(textbook_id, concept_pages)
+        page_refs = f"(Pages: {', '.join(map(str, concept_pages))})"
+        prompt = f"Explain the concept of '{concept}' based on the following excerpt from pages {page_refs} of the Grade 9 textbook '{textbook_id}':\n\n---\n{context_text}\n---\n\nProvide a detailed and comprehensive explanation suitable for a Grade 9 student."
+    else:
+        prompt = f"Explain the concept of '{concept}' in detail and comprehensively, suitable for a Grade 9 student."
+        page_refs = "(Textbook page not found)"
 
     response_stream = generate_content_stream(prompt)
 
