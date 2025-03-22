@@ -106,7 +106,7 @@ def handle_message(update_data):
             send_message(update.from_id, buffered_message)
             print("send_message() called - remaining buffer (last chunk)") # [!LOGGING!] Log for remaining buffer send
         if buffered_message: 
-            send_message(update.from_id, buffered_message)
+            send_message(update.from_id, full_response)
 
         extra_text = "\n\nType /new to kick off a new chat." if chat.history_length > 10 else ""
         response_text = f"{full_response}{extra_text}"  # Reassemble for logging and admin approval
