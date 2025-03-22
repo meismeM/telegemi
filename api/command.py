@@ -659,6 +659,53 @@ def explain_concept(from_id, concept, textbook_id):
 
     return f"{full_response}\n\n{page_refs}" # Append page reference to the accumulated response
 
+def create_questions(from_id, concept, textbook_id):
+    """Generates questions based on a concept from a textbook, using streaming."""
+    concept_pages = search_concept_pages(textbook_id, concept)
+    context_text = ""
+    page_refs = ""
+    prompt = ""  # Initialize prompt
+
+    if concept_pages: # If concept found in textbook
+        context_text = get_text_from_pages(textbook_id, concept_pages)
+        page_refs = f"(Pages: {', '.join(map(str, concept_pages))})"
+        prompt = f"Generate 5-7 review questions about the concept of '{concept}' based on the following excerpt from pages {page_refs} of the Grade 9 textbook '{textbook_id}':\n\n---\n{context_text}\n---\n\nThese questions should be suitable for Grade 9 students to test their understanding of the concept. Include a variety of question types (e.g., multiple choice, true/false, short answer) if appropriate for the concept." # Modified prompt to generate questions
+    else: # If not found, use general prompt (less textbook-specific questions)
+        prompt = f"Generate 5-7 review questions about the concept of '{concept}'. These questions should be suitable for Grade 9 students and cover the key aspects of this concept. Include a variety of question types (e.g., multiple choice, true/false, short answer) if appropriate." # Modified prompt for general questions
+        page_refs = "(Textbook page not found)"
+
+    response_stream = generate_content_stream(prompt)
+
+    buffered_message = ""
+    last_chunk_time = time.time()
+    full_response = ""  # Initialize full_response
+
+    try:
+        for chunk_text in response_stream:
+            if chunk_text:
+                buffered_message += chunk_text
+                full_response += chunk_text
+
+            current_time = time.time()
+            time_since_last_chunk = current_time - last_chunk_time
+
+            if len(buffered_message) > 2000 or time_since_last_chunk >= 3:
+                send_message(from_id, buffered_message)
+                buffered_message = ""
+                last_chunk_time = current_time
+                time.sleep(0.1)
+
+    except Exception as e:
+        error_message = f"Error during streaming response for create_questions: {e}" # Updated error message
+        send_message(from_id, error_message)
+        return error_message
+
+    # Send any remaining buffered text
+    if buffered_message:
+        send_message(from_id, buffered_message)
+
+    return f"{full_response}\n\n{page_refs}" # Append page reference
+
 def prepare_short_note(from_id, topic, textbook_id):
     """Prepares a short note on a topic, using textbook context with page numbers if available, otherwise general AI."""
     topic_pages = search_concept_pages(textbook_id, topic) # Use helper function to find relevant pages
