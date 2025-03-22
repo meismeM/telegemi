@@ -835,8 +835,14 @@ def excute_command(from_id, command):
         else:
             return "Invalid command format. Use: /note [topic] [textbook_id]"
 
-          
     elif command.startswith("create_questions"): # /create_questions concept textbook_id
+        parts = command.split(" ", 2) # Corrected split count to 2
+        if len(parts) == 3: # Corrected check to 3 (now makes sense)
+            command_name, concept, textbook_id = parts # Unpack parts
+            return create_questions(from_id, concept, textbook_id) # [!CORRECTED!] - Call create_questions function
+        else:
+            return "Invalid command format. Use: /create_questions [concept] [textbook_id]"     
+    '''elif command.startswith("create_questions"): # /create_questions concept textbook_id
         parts = command.split(" ", 1) # Split only once at the first space
         if len(parts) == 2: # Now we expect 2 parts: command and the rest
             command_name, concept_and_textbook_id = parts # The rest is concept + textbook_id
@@ -848,7 +854,7 @@ def excute_command(from_id, command):
             else:
                 return "Invalid command format. Use: /create_questions [concept] [textbook_id]"
         else:
-            return "Invalid command format. Use: /create_questions [concept] [textbook_id]"
+            return "Invalid command format. Use: /create_questions [concept] [textbook_id]"''''
 
     
     else:
