@@ -44,7 +44,7 @@ def preprocess_all_textbooks():
     """Pre-processes all textbooks defined in TEXTBOOK_FILES."""
     for textbook_id, filename in TEXTBOOK_FILES.items():
         print(f"--- Pre-processing textbook '{textbook_id}' from '{filename}' ---")
-        filepath = f"api/{filename}" # Assuming PDFs are in api/ folder
+        filepath = f"textbooks/{filename}" # Assuming PDFs are in api/ folder
         pages_content = load_and_chunk_textbook(textbook_id, filepath)
         if pages_content:
             create_index(textbook_id, pages_content)
