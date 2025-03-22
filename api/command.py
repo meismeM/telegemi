@@ -847,9 +847,7 @@ def excute_command(from_id, command):
             else:
                 return "Invalid command format. Use: /create_questions [concept] [textbook_id]"
         else:
-            return "Invalid command format. Use: /create_questions [concept] [textbook_id]"''''
-
-    
+            return "Invalid command format. Use: /create_questions [concept] [textbook_id]"
     else:
         result = "Invalid command, use /help for help"
         return result 
