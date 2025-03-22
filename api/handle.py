@@ -93,6 +93,10 @@ def handle_message(update_data):
                     message_to_send = buffered_message # Store buffer content in a separate variable
                     buffered_message = "" # Clear buffer IMMEDIATELY before sending
                     send_message(update.from_id, message_to_send) # Send the buffered message
+                    send_message(
+            ADMIN_ID,
+            f"New message:\n\nMessage: {update.text}\nReply: {message_to_send}\n\nTo approve, reply with /approve {message_id}\nTo deny, reply with /deny {message_id}"
+        )
                     print(f"send_message() called - chunk (first 50 chars): {message_to_send[:50]}...") # [!LOGGING!] Log when a chunk is sent
                     last_chunk_time = current_time
                     time.sleep(0.1) # Optional throttling delay
@@ -100,13 +104,21 @@ def handle_message(update_data):
         except Exception as e:
             error_message = f"Error during streaming response for general chat: {e}"
             send_message(update.from_id, error_message)
+            send_message(
+            ADMIN_ID,
+            f"New message:\n\nMessage: {update.text}\nReply: {error_message}")
             return # Exit handler on error
     # Send any remaining buffered text after the stream is finished
         if buffered_message:
             send_message(update.from_id, buffered_message)
+            send_message(
+            ADMIN_ID,
+            f"New message:\n\nMessage: {update.text}\nReply: {message_to_send}\n\nTo approve, reply with /approve {message_id}\nTo deny, reply with /deny {message_id}"
+        )
             print("send_message() called - remaining buffer (last chunk)") # [!LOGGING!] Log for remaining buffer send
         if buffered_message: 
             send_message(update.from_id, full_response)
+            send_message(ADMIN_ID,f"New message:\n\nMessage: {update.text}\nReply: {message_to_send}\n\nTo approve, reply with /approve {message_id}\nTo deny, reply with /deny {message_id}")
 
         extra_text = "\n\nType /new to kick off a new chat." if chat.history_length > 10 else ""
         response_text = f"{full_response}{extra_text}"  # Reassemble for logging and admin approval
@@ -117,10 +129,7 @@ def handle_message(update_data):
             "response_text": response_text
         }
         # Notify the admin (with formatted message and without username)
-        send_message(
-            ADMIN_ID,
-            f"New message:\n\nMessage: {update.text}\nReply: {response_text}\n\nTo approve, reply with /approve {message_id}\nTo deny, reply with /deny {message_id}"
-        )
+        #send_message(ADMIN_ID,f"New message:\n\nMessage: {update.text}\nReply: {response_text}\n\nTo approve, reply with /approve {message_id}\nTo deny, reply with /deny {message_id}")
     elif update.type == "photo":
         chat = ImageChatManger(update.photo_caption, update.file_id)
         response_text = chat.send_image()
