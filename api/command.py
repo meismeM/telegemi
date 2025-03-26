@@ -669,9 +669,9 @@ def create_questions(from_id, concept, textbook_id):
     if concept_pages: # If concept found in textbook
         context_text = get_text_from_pages(textbook_id, concept_pages)
         page_refs = f"(Pages: {', '.join(map(str, concept_pages))})"
-        prompt = f"Generate 5-12 review questions about the concept of '{concept}' based on the following excerpt from pages {page_refs} of the Grade 9 textbook '{textbook_id}':\n\n---\n{context_text}\n---\n\nThese questions should be suitable for Grade 9 students to test their understanding of the concept. Include a variety of question types (5 multiple choice, 5 true/false, 2 short answer) if appropriate for the concept. And Include answer after each question" # Modified prompt to generate questions
+        prompt = f"Generate 20-25 review questions about the concept of '{concept}' based on the following excerpt from pages {page_refs} of the Grade 9 textbook '{textbook_id}':\n\n---\n{context_text}\n---\n\nThese questions should be suitable for Grade 9 students to test their understanding of the concept. Include a variety of question types (10 multiple choice, 5 true/false, 5 short answer) if appropriate for the concept. And Include answer after each question" # Modified prompt to generate questions
     else: # If not found, use general prompt (less textbook-specific questions)
-        prompt = f"Generate 5-10 review questions about the concept of '{concept}'. These questions should be suitable for Grade 9 students and cover the key aspects of this concept. Include a variety of question types (e.g., multiple choice, true/false, short answer) if appropriate. And Include answer after each question" # Modified prompt for general questions
+        prompt = f"Generate 20-25 review questions about the concept of '{concept}'. These questions should be suitable for Grade 9 students and cover the key aspects of this concept. Include a variety of question types (e.g., multiple choice, true/false, short answer) if appropriate. And Include answer after each question" # Modified prompt for general questions
         page_refs = "(Textbook page not found)"
 
     response_stream = generate_content_stream(prompt)
