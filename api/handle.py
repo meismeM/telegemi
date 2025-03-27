@@ -257,7 +257,7 @@ def handle_message(update_data):
                      current_time = time.time()
                      time_since_last_chunk = current_time - last_chunk_time
 
-                     if len(buffered_message) > 3500 or (buffered_message and time_since_last_chunk >= 4):
+                     if len(buffered_message) > 3500 or time_since_last_chunk >= 4:
                          message_to_send = buffered_message
                          buffered_message = "" # Clear buffer *before* sending
                          send_log(f"Sending chat buffer (len={len(message_to_send)}) to @{username}")
