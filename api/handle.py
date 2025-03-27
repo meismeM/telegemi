@@ -7,6 +7,7 @@ from .context import ChatManager, ImageChatManger
 from .telegram import Update, send_message, forward_message, copy_message, send_imageMessage, send_message_with_inline_keyboard
 from .printLog import send_log, send_image_log
 from .config import CHANNEL_ID, ADMIN_ID
+import requests
 
 chat_manager = ChatManager()
 pending_approvals = {}
