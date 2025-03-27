@@ -248,7 +248,7 @@ def create_questions(from_id, concept, textbook_id):
             current_time = time.time()
             time_since_last_chunk = current_time - last_chunk_time
 
-            if len(buffered_message) > 3500 or (buffered_message and time_since_last_chunk >= 3):
+            if len(buffered_message) > 3500 or time_since_last_chunk >= 3:
                 send_message(from_id, buffered_message)
                 buffered_message = ""
                 last_chunk_time = current_time
