@@ -512,7 +512,7 @@ def excute_command(from_id, command):
             return "Invalid command format. Use: /answer [exercise_query] [textbook_id]"'''
 
   # api/command.py
-from time import sleep
+'''from time import sleep
 import time # Import time module for sleep
 import google.generativeai as genai
 
@@ -522,13 +522,26 @@ from .printLog import send_log
 from .telegram import send_message
 from .textbook_processor import get_textbook_content, search_concept_pages, get_text_from_pages
 from .gemini import generate_content, generate_content_stream # Add generate_content_stream to import
+'''
+
+from time import sleep
+
+import google.generativeai as genai
+
+from .auth import is_admin
+from .config import ALLOWED_USERS,IS_DEBUG_MODE,GOOGLE_API_KEY
+from .printLog import send_log
+from .telegram import send_message, send_message_with_inline_keyboard # Import send_message_with_inline_keyboard
+from .textbook_processor import get_textbook_content, search_concept_pages, get_text_from_pages
+from .gemini import generate_content, generate_content_stream
 
 admin_auch_info = "You are not the administrator or your administrator ID is set incorrectly!!!"
 debug_mode_info = "Debug mode is not enabled!"
-
+TEXTBOOK_IDS = ["economics9", "history9","english9", "physics9", "biology9", "chemistry9", "citizenship", "geography9"]
 def help():
     help_text = "Welcome to Gemini 2.0 flash AI! Interact through text or images and experience insightful answers. Unlock the power of AI-driven communication – every message is a chance for a smarter exchange. Send text or image!\n Experience the power of AI-driven communication through insightful answers, text, or images. \n👾 Features \n Answer any question, even challenging or strange ones. \n ⏩ Generate creative text formats like poems, scripts, code, emails, and more. \n ⏩ Translate languages effortlessly. \n ⏩ Simplify complex concepts with clear explanations. \n ⏩  Perform math and calculations. \n ⏩ Assist with research and creative content generation. \n ⏩ Provide fun with word games, quizzes, and much more!\n ⏩ Send a text or image and unlock smarter exchanges. Don’t forget to join the channels below for more: And most importantly join the channels:  \n [Channel 1](https://t.me/+gOUK4JnBcCtkYWQ8) \n [Channel 2](https://t.me/telegemin). \n ወደ ጀሚኒ 1.5 ፕሮ አርቴፊሻል ኢንተለጀንስ እንኳን ደህና መጡ! ድንቅ 3 ከፍተኛ ተጠቃሚዎች ያሉት ጎግል AI ፣ እኔ እዚህ ስፍር ቁጥር በሌላቸው መንገዶች ልረዳችሁ የምችል የአርቴፊሻል ኢንተለጀንስ ቻት ቦት ነኝ። በአስተዋይ መልሶች፣ በጽሑፍ ወይም በምስሎች የአርቴፊሻል ኢንተለጀንስ የተጎላበተ የግንኙነት ይለማመዱ። \n \n ⏩ ማንኛውንም ጥያቄ፣ ፈታኝ ወይም እንግዳ የሆኑትንም እንኳ መልስ ያግኙ። \n ⏩ እንደ ግጥም፣ ስክሪፕት፣ ኮድ፣ ኢሜይሎች እና ሌሎችም ያሉ የፈጠራ ጽሑፎችን ይፍጠሩ። \n ⏩ ቋንቋዎችን በቀላሉ መተርጎም። \n ⏩ ውስብስብ ጽንሰ-ሐሳቦችን በግልጽ ማብራራት። \n ⏩ የሂሳብ ስሌቶችን መስራት። \n ⏩ በምርምር እና በፈጠራ ይዘት ያላቸው ፅሁፎች። \n ⏩ በቃላት ጨዋታዎች፣ ጥያቄዎች እና በብዙ ተጨማሪ ነገሮች ይዝናኑ!\n ⏩ ጽሑፍ ወይም ምስል ይላኩ እና መልስ ያግኙ። ለተጨማሪ መረጃ ከታች ባሉት ቻናሎች መቀላቀልዎን አይርሱ።"
-    command_list = "/new - Start new chat\n/explain [concept] [textbook_id] - Explain a concept from textbook\n/note [topic] [textbook_id] - Prepare short note on a topic\n/create_questions [concept] [textbook_id] - Generate review questions "
+    #command_list = "/new - Start new chat\n/explain [concept] [textbook_id] - Explain a concept from textbook\n/note [topic] [textbook_id] - Prepare short note on a topic\n/create_questions [concept] [textbook_id] - Generate review questions "
+    command_list = "/new - Start new chat\n/explain - Get explanation from textbook\n/note - Prepare short note from textbook\n/create_questions - Generate review questions from textbook\n/answer [exercise_query] [textbook_id] - Answer exercise (WIP)" 
     result = f"{help_text}\n\n{command_list}"
     return result
 
@@ -784,6 +797,27 @@ def answer_exercise(from_id, exercise_query, textbook_id):
     response = generate_content(prompt)
     return response
 
+'''def excute_command(from_id, command):
+    if command == "start" or command == "help":
+        return help()
+    elif command == "get_my_info":
+        result = f"your telegram id is: `{from_id}`"
+        return result
+    elif command == "5g_test":
+        return speed_test(from_id)
+    elif command.startswith("send_message"):
+        return send_message_test(from_id, command)
+    elif command in ["get_allowed_users", "get_api_key", "list_models"]:
+        if not is_admin(from_id):
+            return admin_auch_info
+        if IS_DEBUG_MODE == "0":
+            return debug_mode_info
+        if command == "get_allowed_users":
+            return get_allowed_users()
+        elif command == "get_api_key":
+            return get_API_key()
+        elif command == "list_models":
+            return list_models()'''
 def excute_command(from_id, command):
     if command == "start" or command == "help":
         return help()
@@ -805,6 +839,25 @@ def excute_command(from_id, command):
             return get_API_key()
         elif command == "list_models":
             return list_models()
+
+    # [!HIGHLIGHT!] Modified command handling for explain, note, create_questions - Inline Keyboard for Subject Choice
+    elif command in ["explain", "note", "create_questions"]: # Base commands only now
+        command_type = command # Store the command type
+        keyboard = []
+        row = []
+        for textbook_id in TEXTBOOK_IDS: # Iterate through textbook IDs to create buttons
+            button_text = textbook_id.capitalize() # Button text (e.g., "Economics9")
+            callback_data = f"{command_type}_{textbook_id}" # Callback data: "explain_economics9", "note_history9", etc.
+            row.append({"text": button_text, "callback_data": callback_data}) # Add button to current row
+            if len(row) == 2: # Limit buttons per row (adjust as needed)
+                keyboard.append(row) # Add row to keyboard
+                row = [] # Start new row
+        if row: # Add any remaining buttons in the last row
+            keyboard.append(row)
+
+        text = f"Choose a subject for {command_type.replace('_', ' ')}:" # Message text
+        send_message_with_inline_keyboard(from_id, text, keyboard) # Send message with inline keyboard
+        return "" # Return empty string as response is handled via callback
 
     # [!HIGHLIGHT!] Modified command handling for explain, note, answer
     elif command.startswith("explain"):
