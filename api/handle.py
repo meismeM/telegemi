@@ -248,7 +248,7 @@ def handle_message(update_data):
                  for chunk_text in response_stream:
                      chunk_count += 1
                      # logger.info(f"Chat chunk {chunk_count} received for user {user_id}: {chunk_text[:30]}...") # Detailed log
-                     send_log(f"Chunk {chunk_count} for @{username}: '{str(chunk_text)[:30]}...'") # Log reception
+                     #send_log(f"Chunk {chunk_count} for @{username}: '{str(chunk_text)[:30]}...'") # Log reception
 
                      if chunk_text:
                          buffered_message += chunk_text
