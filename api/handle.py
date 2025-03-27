@@ -7,6 +7,7 @@ from .config import CHANNEL_ID, ADMIN_ID
 import time
 chat_manager = ChatManager()
 pending_approvals = {}
+waiting_for_topic = {} 
 
 def handle_message(update_data):
     update = Update(update_data)
@@ -164,3 +165,20 @@ def send_message_to_channel(message, response):
         print(f"Message successfully sent to the channel: {CHANNEL_ID}")
     except Exception as e:
         print(f"Error sending message to channel: {e}")
+def handle_callback_query(update_data):
+    """Handles Telegram callback queries (button clicks)."""
+    update = Update(update_data) # Create Update object from callback query data
+    callback_data = update.callback_data # Extract callback_data
+    from_id = update.callback_from_id # Extract user ID who clicked the button
+
+    send_log(f"Callback query received from id: `{from_id}`, data: `{callback_data}`") # Log callback query
+
+    if callback_data:
+        command_type, textbook_id = callback_data.split("_", 1) # Split callback_data into command and textbook_id
+        waiting_for_topic[from_id] = {"command_type": command_type, "textbook_id": textbook_id} # Store state: waiting for topic
+
+        subject_name = textbook_id.capitalize() # Capitalize textbook ID for user-friendly display
+        prompt_message = f"Please enter the topic for {subject_name}:" # Prompt for topic input
+        send_message(from_id, prompt_message) # Send prompt to user
+    else:
+        send_message(from_id, "Invalid callback query data.") # Error message for invalid callback data
