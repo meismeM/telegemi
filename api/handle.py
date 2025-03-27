@@ -8,6 +8,8 @@ from .telegram import Update, send_message, forward_message, copy_message, send_
 from .printLog import send_log, send_image_log
 from .config import CHANNEL_ID, ADMIN_ID
 import requests
+from .gemini import generate_content_stream # <--- ADD THIS LINE
+from .telegram import TELEGRAM_API # <--- ADD THIS LINE (needed for answerCallbackQuery)
 
 chat_manager = ChatManager()
 pending_approvals = {}
