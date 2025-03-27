@@ -138,7 +138,7 @@ def explain_concept(from_id, concept, textbook_id):
 
             # Send buffered message if it's large enough or if time has passed
             # Use a reasonable buffer size for Telegram (max 4096 chars per message)
-            if len(buffered_message) > 3500 or (buffered_message and time_since_last_chunk >= 3):
+            if len(buffered_message) > 3500 or time_since_last_chunk >= 3:
                 send_message(from_id, buffered_message)
                 buffered_message = ""
                 last_chunk_time = current_time
