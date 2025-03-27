@@ -14,68 +14,98 @@ pending_approvals = {}
 # This dictionary stores the state: {user_id: {"command_type": "explain", "textbook_id": "econ9"}}
 waiting_for_topic = {}
 
-# --- handle_callback_query remains largely the same ---
+
 def handle_callback_query(update_data):
     """Handles Telegram callback queries (button clicks)."""
-    update = Update(update_data) # Create Update object from callback query data
-    callback_data = update.callback_data # Extract callback_data
-    from_id = update.callback_from_id # Extract user ID who clicked the button
-    # [!IMPROVEMENT!] Answer the callback query to remove the "loading" state on the button
+    send_log(f"--- handle_callback_query START ---") # Log entry
+    update = Update(update_data)
+    callback_data = update.callback_data
+    from_id = update.callback_from_id
+    callback_query_id = None # Initialize
+
     if "callback_query" in update_data:
         callback_query_id = update_data["callback_query"]["id"]
+        send_log(f"Callback Query ID: {callback_query_id}") # Log ID
+    else:
+         send_log("WARNING: 'callback_query' not found in update_data for callback handler.")
+
+    # Answer the callback query ASAP
+    if callback_query_id:
         try:
             answer_payload = {"callback_query_id": callback_query_id}
-            requests.post(f"{TELEGRAM_API}/answerCallbackQuery", json=answer_payload)
+            # Use the imported TELEGRAM_API
+            r = requests.post(f"{TELEGRAM_API}/answerCallbackQuery", json=answer_payload)
+            send_log(f"Answered callback query {callback_query_id}. Status: {r.status_code}")
+            if r.status_code != 200:
+                 send_log(f"Error answering callback query: {r.text}")
         except Exception as e:
-            send_log(f"Error answering callback query {callback_query_id}: {e}")
+            send_log(f"CRITICAL Error during answerCallbackQuery for {callback_query_id}: {e}")
+            # Decide if you should proceed or return? For now, log and continue.
 
-
-    # Make sure from_id is valid
     if not from_id:
-        send_log("Error: Callback query received without a valid user ID.")
-        # Cannot send message back if no ID
+        send_log("ERROR: Callback query received without a valid 'from_id'. Aborting.")
+        send_log(f"--- handle_callback_query END (Error: No from_id) ---")
         return
 
-    send_log(f"Callback query received from id: `{from_id}`, data: `{callback_data}`") # Log callback query
+    send_log(f"Callback query details: from_id=`{from_id}`, data=`{callback_data}`")
 
     if callback_data:
         try:
-            command_type, textbook_id = callback_data.split("_", 1) # Split callback_data
-             # Validate command_type and textbook_id if necessary
-            if command_type not in ["explain", "note", "create_questions"]: # Add other valid types
-                 raise ValueError("Invalid command type in callback")
-            # Can add check if textbook_id is in a known list too
+            send_log("Splitting callback_data...") # Log before split
+            command_type, textbook_id = callback_data.split("_", 1)
+            send_log(f"Split OK: command_type='{command_type}', textbook_id='{textbook_id}'")
 
-            waiting_for_topic[from_id] = {"command_type": command_type, "textbook_id": textbook_id} # Store state
+            # Basic validation
+            if command_type not in ["explain", "note", "create_questions"]:
+                 raise ValueError(f"Invalid command_type '{command_type}' received")
+            # Add textbook_id validation if needed
 
-            subject_name = textbook_id.replace("9", " Grade 9").capitalize() # User-friendly name
-            # Customize prompt based on command type
+            send_log(f"Updating waiting_for_topic for user {from_id}") # Log before state update
+            waiting_for_topic[from_id] = {"command_type": command_type, "textbook_id": textbook_id}
+            send_log(f"State updated: waiting_for_topic = {waiting_for_topic}") # Log after state update
+
+            subject_name = textbook_id.replace("9", " Grade 9").capitalize()
+
             if command_type == "explain":
                 prompt_message = f"OK. Please enter the *concept* you want explained from {subject_name}:"
             elif command_type == "note":
                  prompt_message = f"OK. Please enter the *topic* you want a note on from {subject_name}:"
             elif command_type == "create_questions":
                  prompt_message = f"OK. Please enter the *concept* you want review questions for from {subject_name}:"
-            else:
+            else: # Should not happen due to validation above, but fallback
                  prompt_message = f"Please enter the topic/concept for {subject_name}:"
 
+            send_log(f"Sending prompt message to {from_id}: '{prompt_message}'") # Log before send
             send_message(from_id, prompt_message) # Send prompt to user
+            send_log(f"Prompt message sent successfully to {from_id}.") # Log after send
+
         except ValueError as e:
-            send_log(f"Error splitting callback_data '{callback_data}': {e}")
-            send_message(from_id, "Sorry, there was an error processing your selection. Please try the command again.")
+            send_log(f"ERROR handling callback_data '{callback_data}': {e}")
+            try: # Try sending error message to user
+                send_message(from_id, "Sorry, there was an error processing your selection. Please try the command again.")
+            except Exception as send_e:
+                 send_log(f"Failed to send error message to user {from_id}: {send_e}")
             # Clean up potentially invalid state
             if from_id in waiting_for_topic:
+                send_log(f"Cleaning up state for {from_id} due to error.")
                 del waiting_for_topic[from_id]
         except Exception as e:
-             send_log(f"Unexpected error handling callback query: {e}")
-             send_message(from_id, "An unexpected error occurred. Please try again later.")
+             send_log(f"UNEXPECTED error in handle_callback_query: {e}")
+             try:
+                send_message(from_id, "An unexpected error occurred. Please try again later.")
+             except Exception as send_e:
+                 send_log(f"Failed to send unexpected error message to user {from_id}: {send_e}")
              if from_id in waiting_for_topic:
+                send_log(f"Cleaning up state for {from_id} due to unexpected error.")
                 del waiting_for_topic[from_id]
     else:
-        send_message(from_id, "Invalid selection data received.") # Error message
+        send_log(f"ERROR: Invalid or empty callback_data received from {from_id}.")
+        try:
+            send_message(from_id, "Invalid selection data received.") # Error message
+        except Exception as send_e:
+             send_log(f"Failed to send invalid callback data message to user {from_id}: {send_e}")
 
-
-# --- handle_message (Major Changes) ---
+    send_log(f"--- handle_callback_query END ---") # Log exit
 def handle_message(update_data):
     update = Update(update_data)
     authorized = is_authorized(update.from_id, update.user_name)
