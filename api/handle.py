@@ -1,184 +1,378 @@
+import time
 from .auth import is_authorized, is_admin
-from .command import excute_command
+# Import the specific execution functions needed
+from .command import excute_command, explain_concept, prepare_short_note, create_questions
 from .context import ChatManager, ImageChatManger
-from .telegram import Update, send_message, forward_message, copy_message, send_imageMessage
+# Import send_message_with_inline_keyboard if needed elsewhere, though likely not
+from .telegram import Update, send_message, forward_message, copy_message, send_imageMessage, send_message_with_inline_keyboard
 from .printLog import send_log, send_image_log
 from .config import CHANNEL_ID, ADMIN_ID
-import time
+
 chat_manager = ChatManager()
 pending_approvals = {}
-waiting_for_topic = {} 
+# This dictionary stores the state: {user_id: {"command_type": "explain", "textbook_id": "econ9"}}
+waiting_for_topic = {}
 
-def handle_message(update_data):
-    update = Update(update_data)
-    authorized = is_authorized(update.from_id, update.user_name)
-
-    # Log the event (without username and ID)
-    #send_log(f"event received\nThe content sent is:\n{update.text}\n```json\n{update_data}```")
-    send_log(f"event received\n@{update.user_name} id:`{update.from_id}`\nThe content sent is:\n{update.text}\n```json\n{update_data}```")
-    
-    if not authorized:
-        send_message(update.from_id, "You are not allowed to use this bot.")  # No ID in message
-        log = f"No rights to use, The content sent is:\n{update.text}"
-        send_log(log)
-        return
-
-    if update.type == "command":
-        if update.text.startswith("approve") and is_admin(update.from_id):
-            try:
-                message_id = int(update.text.split(" ")[1])
-            except (IndexError, ValueError):
-                send_message(update.from_id, "Invalid command format. Please use /approve <message_id>")
-                return
-
-            if message_id not in pending_approvals:
-                send_message(update.from_id, "Message ID not found.")
-                return
-
-            approved_message = pending_approvals.pop(message_id)
-
-            try:
-                if "photo_url" in approved_message:  # It's an image message
-                    caption = approved_message.get("photo_caption", "")  
-                    send_imageMessage(CHANNEL_ID, caption, approved_message["imageID"])
-                    send_message(CHANNEL_ID, approved_message["response_text"])
-                    send_message(approved_message["from_id"], "GREAT!")
-                else:  # It's a text message
-                    send_message_to_channel(approved_message["text"], approved_message["response_text"])
-                    send_message(approved_message["from_id"], "GREAT!")
-            except Exception as e:
-                send_message(update.from_id, f"An error occurred while approving: {e}")
-
-        elif update.text.startswith("deny") and is_admin(update.from_id):
-            try:
-                message_id = int(update.text.split(" ")[1])
-            except (IndexError, ValueError):
-                send_message(update.from_id, "Invalid command format. Please use /deny <message_id>")
-                return
-
-            if message_id not in pending_approvals:
-                send_message(update.from_id, "Message ID not found.")
-                return
-
-            denied_message = pending_approvals.pop(message_id)
-            send_message(denied_message["from_id"], "Your message has been denied.")
-
-        else:  # Handle other commands
-            response_text = excute_command(update.from_id, update.text)
-            if response_text != "":
-                send_message(update.from_id, response_text)
-                log = f"The command sent is:\n{update.text}\nThe reply content is:\n{response_text}"
-                send_log(log)
-    
-    elif update.type == "text":
-        chat = chat_manager.get_chat(update.from_id)
-        response_stream = chat.send_message(update.text) 
-
-        buffered_message = ""  
-        last_chunk_time = time.time() 
-        full_response = "" 
-        # [!HIGHLIGHT!] Define message_id here for text messages
-        message_id = update.message_id # Get message_id from the update object
-    
-        try:
-            for chunk_text in response_stream:
-                if chunk_text:
-                    buffered_message += chunk_text
-                    full_response += chunk_text
-    
-                current_time = time.time()
-                time_since_last_chunk = current_time - last_chunk_time
-    
-                # [!HIGHLIGHT!] More explicit buffer flush logic and logging
-                if len(buffered_message) > 2000 or time_since_last_chunk >= 4: 
-                    message_to_send = buffered_message # Store buffer content in a separate variable
-                    buffered_message = "" # Clear buffer IMMEDIATELY before sending
-                    send_message(update.from_id, message_to_send) # Send the buffered message
-                    send_message(
-            ADMIN_ID,
-            f"New message:\n\nMessage: {update.text}\nReply: {message_to_send}\n\nTo approve, reply with /approve {message_id}\nTo deny, reply with /deny {message_id}"
-        )
-                    print(f"send_message() called - chunk (first 50 chars): {message_to_send[:50]}...") # [!LOGGING!] Log when a chunk is sent
-                    last_chunk_time = current_time
-                    time.sleep(0.1) # Optional throttling delay
-
-        except Exception as e:
-            error_message = f"Error during streaming response for general chat: {e}"
-            send_message(update.from_id, error_message)
-            send_message(
-            ADMIN_ID,
-            f"New message:\n\nMessage: {update.text}\nReply: {error_message}")
-            return # Exit handler on error
-    # Send any remaining buffered text after the stream is finished
-        if buffered_message:
-            send_message(update.from_id, buffered_message)
-            send_message(
-            ADMIN_ID,
-            f"New message:\n\nMessage: {update.text}\nReply: {buffered_message}\n\nTo approve, reply with /approve {message_id}\nTo deny, reply with /deny {message_id}"
-        )
-            print("send_message() called - remaining buffer (last chunk)") # [!LOGGING!] Log for remaining buffer send
-        if buffered_message: 
-            send_message(update.from_id, full_response)
-            send_message(ADMIN_ID,f"New message:\n\nMessage: {update.text}\nReply: {full_response}\n\nTo approve, reply with /approve {message_id}\nTo deny, reply with /deny {message_id}")
-
-        extra_text = "\n\nType /new to kick off a new chat." if chat.history_length > 10 else ""
-        response_text = f"{full_response}{extra_text}"  # Reassemble for logging and admin approval
-        
-        pending_approvals[message_id] = { # [!FIXED! - message_id is now defined]
-            "from_id": update.from_id,
-            "text": update.text,
-            "response_text": response_text
-        }
-        # Notify the admin (with formatted message and without username)
-        #send_message(ADMIN_ID,f"New message:\n\nMessage: {update.text}\nReply: {response_text}\n\nTo approve, reply with /approve {message_id}\nTo deny, reply with /deny {message_id}")
-    elif update.type == "photo":
-        chat = ImageChatManger(update.photo_caption, update.file_id)
-        response_text = chat.send_image()
-        send_message(update.from_id, response_text, reply_to_message_id=update.message_id)
-
-        photo_url = chat.tel_photo_url()
-        imageID = update.file_id
-        log = f"[photo]({photo_url}), The accompanying message is:\n{update.photo_caption}\nThe reply content is:\n{response_text}"
-        send_image_log("", imageID)
-        send_log(log)
-
-        # Queue the image for admin approval
-        message_id = update.message_id
-        pending_approvals[message_id] = {
-            "from_id": update.from_id,
-            "photo_caption": update.photo_caption,
-            "response_text": response_text,
-            "photo_url": photo_url,
-            "imageID": imageID
-        }
-
-        # Notify the admin (without username)
-        send_message(
-            ADMIN_ID,
-            f"New photo:\n\nCaption: {update.photo_caption}\nReply: {response_text}\n\nTo approve, reply with /approve {message_id}\nTo deny, reply with /deny {message_id}"
-        )
-
-
-def send_message_to_channel(message, response):
-    try:
-        send_message(CHANNEL_ID, f"Message: {message}\nReply: {response}")  # Formatted message
-        print(f"Message successfully sent to the channel: {CHANNEL_ID}")
-    except Exception as e:
-        print(f"Error sending message to channel: {e}")
+# --- handle_callback_query remains largely the same ---
 def handle_callback_query(update_data):
     """Handles Telegram callback queries (button clicks)."""
     update = Update(update_data) # Create Update object from callback query data
     callback_data = update.callback_data # Extract callback_data
     from_id = update.callback_from_id # Extract user ID who clicked the button
+    # [!IMPROVEMENT!] Answer the callback query to remove the "loading" state on the button
+    if "callback_query" in update_data:
+        callback_query_id = update_data["callback_query"]["id"]
+        try:
+            answer_payload = {"callback_query_id": callback_query_id}
+            requests.post(f"{TELEGRAM_API}/answerCallbackQuery", json=answer_payload)
+        except Exception as e:
+            send_log(f"Error answering callback query {callback_query_id}: {e}")
+
+
+    # Make sure from_id is valid
+    if not from_id:
+        send_log("Error: Callback query received without a valid user ID.")
+        # Cannot send message back if no ID
+        return
 
     send_log(f"Callback query received from id: `{from_id}`, data: `{callback_data}`") # Log callback query
 
     if callback_data:
-        command_type, textbook_id = callback_data.split("_", 1) # Split callback_data into command and textbook_id
-        waiting_for_topic[from_id] = {"command_type": command_type, "textbook_id": textbook_id} # Store state: waiting for topic
+        try:
+            command_type, textbook_id = callback_data.split("_", 1) # Split callback_data
+             # Validate command_type and textbook_id if necessary
+            if command_type not in ["explain", "note", "create_questions"]: # Add other valid types
+                 raise ValueError("Invalid command type in callback")
+            # Can add check if textbook_id is in a known list too
 
-        subject_name = textbook_id.capitalize() # Capitalize textbook ID for user-friendly display
-        prompt_message = f"Please enter the topic for {subject_name}:" # Prompt for topic input
-        send_message(from_id, prompt_message) # Send prompt to user
+            waiting_for_topic[from_id] = {"command_type": command_type, "textbook_id": textbook_id} # Store state
+
+            subject_name = textbook_id.replace("9", " Grade 9").capitalize() # User-friendly name
+            # Customize prompt based on command type
+            if command_type == "explain":
+                prompt_message = f"OK. Please enter the *concept* you want explained from {subject_name}:"
+            elif command_type == "note":
+                 prompt_message = f"OK. Please enter the *topic* you want a note on from {subject_name}:"
+            elif command_type == "create_questions":
+                 prompt_message = f"OK. Please enter the *concept* you want review questions for from {subject_name}:"
+            else:
+                 prompt_message = f"Please enter the topic/concept for {subject_name}:"
+
+            send_message(from_id, prompt_message) # Send prompt to user
+        except ValueError as e:
+            send_log(f"Error splitting callback_data '{callback_data}': {e}")
+            send_message(from_id, "Sorry, there was an error processing your selection. Please try the command again.")
+            # Clean up potentially invalid state
+            if from_id in waiting_for_topic:
+                del waiting_for_topic[from_id]
+        except Exception as e:
+             send_log(f"Unexpected error handling callback query: {e}")
+             send_message(from_id, "An unexpected error occurred. Please try again later.")
+             if from_id in waiting_for_topic:
+                del waiting_for_topic[from_id]
     else:
-        send_message(from_id, "Invalid callback query data.") # Error message for invalid callback data
+        send_message(from_id, "Invalid selection data received.") # Error message
+
+
+# --- handle_message (Major Changes) ---
+def handle_message(update_data):
+    update = Update(update_data)
+    authorized = is_authorized(update.from_id, update.user_name)
+
+    # Basic check for message structure
+    if not update.from_id or ("message" not in update.update and "channel_post" not in update.update) :
+         send_log(f"Received update without message or from_id: {update_data}")
+         return # Ignore malformed updates
+
+    # Log the event
+    log_text = update.text or update.photo_caption or "[No Text/Caption]"
+    send_log(f"Event received from @{update.user_name} id:`{update.from_id}` Type: {update.type}\nContent: {log_text}\n```json\n{update_data}```")
+
+    if not authorized:
+        try:
+            send_message(update.from_id, "Sorry, you are not authorized to use this bot.")
+            log = f"Unauthorized access attempt by @{update.user_name} id:`{update.from_id}`. Content: {log_text}"
+            send_log(log)
+        except Exception as e:
+             send_log(f"Error sending unauthorized message to {update.from_id}: {e}")
+        return
+
+    # --- STATE CHECK: Is the bot waiting for a topic from this user? ---
+    if update.from_id in waiting_for_topic and update.type == "text" and not update.text.startswith('/'):
+        state = waiting_for_topic[update.from_id]
+        command_type = state["command_type"]
+        textbook_id = state["textbook_id"]
+        topic_or_concept = update.text # This message is the topic/concept
+
+        send_log(f"Processing '{topic_or_concept}' for command '{command_type}' with textbook '{textbook_id}' from user {update.from_id}")
+
+        # --- Remove state BEFORE processing to prevent race conditions/errors ---
+        del waiting_for_topic[update.from_id]
+
+        try:
+            # Call the appropriate function from command.py
+            # These functions now handle sending messages directly (including streaming)
+            if command_type == "explain":
+                explain_concept(update.from_id, topic_or_concept, textbook_id)
+            elif command_type == "note":
+                prepare_short_note(update.from_id, topic_or_concept, textbook_id)
+            elif command_type == "create_questions":
+                create_questions(update.from_id, topic_or_concept, textbook_id)
+            # Add elif for other commands if needed
+
+            # Since functions handle sending, no need to send response here
+            send_log(f"Successfully processed topic '{topic_or_concept}' for user {update.from_id}")
+
+        except Exception as e:
+            error_msg = f"An error occurred while processing your request for '{topic_or_concept}': {e}"
+            send_log(error_msg)
+            send_message(update.from_id, error_msg)
+            # State already removed, just notify user
+
+        # --- IMPORTANT: Return after handling the topic ---
+        return
+
+    # --- If not waiting for a topic, proceed with normal message handling ---
+
+    elif update.type == "command":
+        # Admin approval/denial commands
+        if update.text.startswith("approve ") and is_admin(update.from_id):
+            try:
+                message_id_str = update.text.split(" ", 1)[1]
+                 # Check if message_id_str is numeric before converting
+                if not message_id_str.isdigit():
+                     send_message(update.from_id, "Invalid Message ID format. It should be a number.")
+                     return
+                message_id = int(message_id_str)
+
+                if message_id not in pending_approvals:
+                    send_message(update.from_id, f"Message ID {message_id} not found in pending approvals.")
+                    return
+
+                approved_message = pending_approvals.pop(message_id) # Remove from pending
+
+                try:
+                    send_message(update.from_id, f"Approving message {message_id}...") # Feedback to admin
+                    if "imageID" in approved_message: # Check using a key more likely to exist for images
+                        caption = approved_message.get("photo_caption", "")
+                        # Send image first, then the AI response text
+                        send_imageMessage(CHANNEL_ID, caption, approved_message["imageID"])
+                        if approved_message.get("response_text"): # Send AI response if exists
+                             send_message(CHANNEL_ID, f"AI Response:\n{approved_message['response_text']}")
+                        send_message(approved_message["from_id"], "Your image and caption have been approved and posted!")
+                        send_log(f"Admin approved and posted image message {message_id} to channel {CHANNEL_ID}")
+                    else: # It's a text message
+                         # Combine original message and response for the channel post
+                        channel_post = f"**User Question:**\n{approved_message['text']}\n\n**AI Response:**\n{approved_message['response_text']}"
+                        send_message(CHANNEL_ID, channel_post)
+                        send_message(approved_message["from_id"], "Your message has been approved and posted!")
+                        send_log(f"Admin approved and posted text message {message_id} to channel {CHANNEL_ID}")
+
+                except Exception as e:
+                    send_log(f"Error occurred during approval of {message_id}: {e}")
+                    send_message(update.from_id, f"An error occurred while posting approved message {message_id}: {e}")
+                     # Optionally put back in pending? Depends on desired retry logic.
+                    # pending_approvals[message_id] = approved_message
+
+            except IndexError:
+                send_message(update.from_id, "Invalid command format. Use: /approve <message_id>")
+            except ValueError: # Handles if split[1] is not convertible to int
+                 send_message(update.from_id, "Invalid Message ID format. It should be a number.")
+            except Exception as e: # Catch other unexpected errors during approval command processing
+                 send_log(f"Unexpected error processing /approve command: {e}")
+                 send_message(update.from_id, f"An unexpected error occurred: {e}")
+
+
+        elif update.text.startswith("deny ") and is_admin(update.from_id):
+            try:
+                message_id_str = update.text.split(" ", 1)[1]
+                if not message_id_str.isdigit():
+                     send_message(update.from_id, "Invalid Message ID format. It should be a number.")
+                     return
+                message_id = int(message_id_str)
+
+                if message_id not in pending_approvals:
+                    send_message(update.from_id, f"Message ID {message_id} not found in pending approvals.")
+                    return
+
+                denied_message = pending_approvals.pop(message_id) # Remove from pending
+                send_message(update.from_id, f"Denying message {message_id}...") # Feedback to admin
+                send_message(denied_message["from_id"], "Sorry, your message was not approved for posting.")
+                send_log(f"Admin denied message {message_id}.")
+
+            except IndexError:
+                send_message(update.from_id, "Invalid command format. Use: /deny <message_id>")
+            except ValueError:
+                 send_message(update.from_id, "Invalid Message ID format. It should be a number.")
+            except Exception as e:
+                 send_log(f"Unexpected error processing /deny command: {e}")
+                 send_message(update.from_id, f"An unexpected error occurred: {e}")
+
+
+        # Handle other commands (/new, /help, /get_my_info, admin debug cmds)
+        else:
+            # excute_command might return text to send, None if it sent messages itself, or an error string
+            response_text = excute_command(update.from_id, update.text)
+            if response_text: # Only send if there's text to send back
+                send_message(update.from_id, response_text)
+                log = f"Command: {update.text}\nReply: {response_text}"
+                send_log(log)
+            # else: response handled by excute_command itself (like keyboards or admin logs)
+
+
+    elif update.type == "text": # General text message (NOT a topic response)
+        chat = chat_manager.get_chat(update.from_id)
+        # Use the streaming function from gemini directly if ChatManager doesn't support it
+        # response_stream = chat.send_message(update.text) # Assumes ChatManager.send_message returns a stream
+        # OR directly call gemini's streaming function if ChatManager doesn't handle it:
+        response_stream = generate_content_stream(update.text) # Using gemini.py's streaming
+
+        buffered_message = ""
+        last_send_time = time.time()
+        full_response = ""
+        message_id = update.message_id # For admin approval context
+        initial_chunk_sent_to_user = False
+
+        try:
+            for chunk_text in response_stream:
+                if chunk_text:
+                    buffered_message += chunk_text
+                    full_response += chunk_text # Accumulate full response for logging/approval
+
+                current_time = time.time()
+                # Send based on buffer size or time elapsed
+                if len(buffered_message) > 1500 or (current_time - last_send_time >= 4 and buffered_message):
+                    try:
+                        send_message(update.from_id, buffered_message)
+                        initial_chunk_sent_to_user = True
+                        buffered_message = "" # Clear buffer AFTER sending
+                        last_send_time = current_time
+                        sleep(0.1) # Throttle
+                    except Exception as send_err:
+                         print(f"Error sending chat chunk to user {update.from_id}: {send_err}")
+                         # Decide if to break or continue
+
+            # Send any remaining buffer
+            if buffered_message:
+                try:
+                    send_message(update.from_id, buffered_message)
+                    initial_chunk_sent_to_user = True
+                except Exception as send_err:
+                    print(f"Error sending final chat buffer to user {update.from_id}: {send_err}")
+
+
+            # Add the '/new' suggestion if history is long and response was successful
+            if initial_chunk_sent_to_user and chat.history_length > 10 : # Only if chat history applies and message was sent
+                 try:
+                    send_message(update.from_id, "\n\n_Type /new to start a fresh chat._")
+                 except Exception as send_err:
+                    print(f"Error sending '/new' suggestion to user {update.from_id}: {send_err}")
+
+            # --- Admin Approval Logic for Text ---
+            if full_response and message_id: # Only queue if a response was generated
+                 pending_approvals[message_id] = {
+                    "from_id": update.from_id,
+                    "text": update.text, # Original user message
+                    "response_text": full_response # Full AI response
+                }
+                 # Notify admin
+                 admin_notify_text = (f"📝 New Text Message Pending Approval:\n\n"
+                                     f"User: @{update.user_name} (`{update.from_id}`)\n"
+                                     f"Message ID: `{message_id}`\n\n"
+                                     f"**Question:**\n{update.text}\n\n"
+                                     f"**AI Response:**\n{full_response[:1000]}...\n\n" # Truncate long responses for notification
+                                     f"Reply with `/approve {message_id}` or `/deny {message_id}`")
+                 try:
+                    send_message(ADMIN_ID, admin_notify_text)
+                 except Exception as admin_err:
+                     send_log(f"CRITICAL Error sending text approval notification to ADMIN: {admin_err}")
+
+
+        except Exception as e:
+            error_message = f"Error during streaming chat response: {e}"
+            send_log(error_message)
+            try:
+                 # Send error to user
+                 send_message(update.from_id, f"Sorry, I encountered an error processing your message: {e}")
+                 # Optionally notify admin about the error
+                 send_message(ADMIN_ID, f"⚠️ Error processing message for user {update.from_id} (`@{update.user_name}`):\nMessage: {update.text}\nError: {e}")
+            except Exception as report_err:
+                 send_log(f"Error reporting chat stream error: {report_err}")
+            return # Exit handler on error
+
+
+    elif update.type == "photo":
+        chat_img = ImageChatManger(update.photo_caption, update.file_id)
+        message_id = update.message_id # For admin approval context
+
+        try:
+            # Generate response (non-streaming for images usually)
+            response_text = chat_img.send_image()
+
+            # Send response to user first
+            send_message(update.from_id, response_text, reply_to_message_id=update.message_id)
+
+            # Log with photo URL
+            try:
+                photo_url = chat_img.tel_photo_url()
+                log_caption = f"Caption: {update.photo_caption}\nReply: {response_text}"
+                # send_image_log(log_caption, update.file_id) # Send image+caption log
+                # Send separate text log with URL for context
+                send_log(f"📸 Photo received from @{update.user_name} id:`{update.from_id}`\n[Photo Link]({photo_url})\n{log_caption}")
+            except Exception as log_err:
+                send_log(f"Error generating photo URL or logging image: {log_err}")
+                photo_url = "[Error getting URL]" # Placeholder
+
+            # --- Admin Approval Logic for Photos ---
+            if response_text and message_id: # Queue if response generated
+                pending_approvals[message_id] = {
+                    "from_id": update.from_id,
+                    "photo_caption": update.photo_caption,
+                    "response_text": response_text,
+                    "imageID": update.file_id # Use file_id directly
+                }
+                # Notify admin
+                admin_notify_text = (f"🖼️ New Image Message Pending Approval:\n\n"
+                                     f"User: @{update.user_name} (`{update.from_id}`)\n"
+                                     f"Message ID: `{message_id}`\n\n"
+                                     f"**Caption:**\n{update.photo_caption}\n\n"
+                                     f"**AI Response:**\n{response_text[:1000]}...\n\n"
+                                     # Maybe add [Photo Link]({photo_url}) here if reliable
+                                     f"Reply with `/approve {message_id}` or `/deny {message_id}`")
+                try:
+                     # Send notification text first
+                    send_message(ADMIN_ID, admin_notify_text)
+                     # Then attempt to send the image itself to admin for easier review
+                    send_imageMessage(ADMIN_ID, f"Image for Approval (ID: {message_id})", update.file_id)
+                except Exception as admin_err:
+                    send_log(f"CRITICAL Error sending image approval notification to ADMIN: {admin_err}")
+
+
+        except Exception as e:
+            error_message = f"Error processing image: {e}"
+            send_log(error_message)
+            try:
+                 # Send error to user
+                 send_message(update.from_id, f"Sorry, I couldn't process the image: {e}", reply_to_message_id=update.message_id)
+                 # Notify admin
+                 send_message(ADMIN_ID, f"⚠️ Error processing image for user {update.from_id} (`@{update.user_name}`):\nCaption: {update.photo_caption}\nError: {e}")
+            except Exception as report_err:
+                 send_log(f"Error reporting image processing error: {report_err}")
+            return
+
+    # Ignore other types of updates for now
+    # else:
+    #     send_log(f"Ignoring update of unhandled type '{update.type}' from user {update.from_id}")
+
+# --- send_message_to_channel (Minor change for clarity) ---
+# This function seems unused now as approval logic handles posting directly
+# def send_message_to_channel(message, response):
+#     try:
+#         # Consider a more structured format
+#         channel_post = f"**User Question:**\n{message}\n\n**AI Response:**\n{response}"
+#         send_message(CHANNEL_ID, channel_post)
+#         print(f"Message successfully sent to channel {CHANNEL_ID}")
+#         send_log(f"Posted to channel {CHANNEL_ID}:\n{channel_post}")
+#     except Exception as e:
+#         print(f"Error sending message to channel {CHANNEL_ID}: {e}")
+#         send_log(f"ERROR sending to channel {CHANNEL_ID}: {e}")
