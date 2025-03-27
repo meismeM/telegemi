@@ -11,8 +11,7 @@ from .telegram import Update, send_message, send_imageMessage, send_message_with
 from .printLog import send_log # Use send_log for consistency or switch to logging module
 from .config import CHANNEL_ID, ADMIN_ID, IS_DEBUG_MODE
 import requests # For answerCallbackQuery
-from .config import TELEGRAM_API # Import TELEGRAM_API base URL
-
+from .telegram import TELEGRAM_API
 logger = logging.getLogger(__name__)
 
 # --- State Management (Simple cache - see Vercel note) ---
