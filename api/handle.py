@@ -8,7 +8,7 @@ from .telegram import Update, send_message, forward_message, copy_message, send_
 from .printLog import send_log, send_image_log
 from .config import CHANNEL_ID, ADMIN_ID
 import requests
-from .gemini import generate_content_stream # <--- ADD THIS LINE
+from .gemini import generate_content_stream, ChatConversation # Make sure ChatConversation is imported if not already
 from .telegram import TELEGRAM_API # <--- ADD THIS LINE (needed for answerCallbackQuery)
 
 chat_manager = ChatManager()
@@ -243,8 +243,18 @@ def handle_message(update_data):
                  send_log(f"Unexpected error processing /deny command: {e}")
                  send_message(update.from_id, f"An unexpected error occurred: {e}")
 
-
-        # Handle other commands (/new, /help, /get_my_info, admin debug cmds)
+            # --- SPECIAL HANDLING FOR /new within commands ---
+        elif update.text.startswith("new")
+                 
+            chat = chat_manager.get_chat(update.from_id)
+            try:
+                reset_message = next(chat.send_message_stream("/new"))
+                send_message(update.from_id, reset_message)
+                send_log(f"User {update.from_id} started new chat via /new command.")
+            except Exception as e:
+                send_log(f"Error handling /new command for {update.from_id}: {e}")
+                send_message(update.from_id, f"Error starting new chat: {e}")
+            return # Handled /new, don't proceed further
         else:
             # excute_command might return text to send, None if it sent messages itself, or an error string
             response_text = excute_command(update.from_id, update.text)
