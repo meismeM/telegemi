@@ -90,6 +90,9 @@ class Update:
         self.file_id = self._file_id()
         self.user_name = update["message"]["from"].get("username", f" [UnnamedUser](tg://openmessage?user_id={self.from_id})")
         self.message_id: int = update["message"]["message_id"]
+        # [!HIGHLIGHT!] New properties for callback queries
+        self.callback_data = self._callback_data() # Extract callback_data
+        self.callback_from_id = self._callback_from_id() # Extract callback_from_id
 
     def _type(self):
         if "text" in self.update["message"]:
@@ -120,3 +123,12 @@ class Update:
         if self.type == "photo":
             return self.update["message"]["photo"][-1]["file_id"]
         return ""
+    def _callback_data(self):
+        if "callback_query" in self.update:
+            return self.update["callback_query"].get("data")
+        return None
+
+    def _callback_from_id(self):
+        if "callback_query" in self.update:
+            return self.update["callback_query"]["from"]["id"]
+        return None
