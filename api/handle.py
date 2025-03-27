@@ -16,13 +16,15 @@ pending_approvals = {}
 # This dictionary stores the state: {user_id: {"command_type": "explain", "textbook_id": "econ9"}}
 waiting_for_topic = {}
 
-
 def handle_callback_query(update_data):
     """Handles Telegram callback queries (button clicks)."""
-    send_log(f"--- handle_callback_query START ---") # Log entry
-    update = Update(update_data)
-    callback_data = update.callback_data
-    from_id = update.callback_from_id
+    send_log(f"--- handle_callback_query START ---")
+    try: # Wrap the whole thing to catch errors creating Update object
+        update = Update(update_data)
+        send_log(f"Update object created. Type: {update.type}, Callback Data: {update.callback_data}, Callback From ID: {update.callback_from_id}") # LOG UPDATE OBJECT DETAILS
+
+        callback_data = update.callback_data
+        from_id = update.callback_from_id
     callback_query_id = None # Initialize
 
     if "callback_query" in update_data:
@@ -41,7 +43,7 @@ def handle_callback_query(update_data):
             if r.status_code != 200:
                  send_log(f"Error answering callback query: {r.text}")
         except Exception as e:
-            send_log(f"CRITICAL Error during answerCallbackQuery for {callback_query_id}: {e}")
+            send_log(f"CRITICAL ERROR at start of handle_callback_query (maybe creating Update obj): {e}", exc_info=True) # Log with traceback
             # Decide if you should proceed or return? For now, log and continue.
 
     if not from_id:
@@ -50,7 +52,7 @@ def handle_callback_query(update_data):
         return
 
     send_log(f"Callback query details: from_id=`{from_id}`, data=`{callback_data}`")
-
+    
     if callback_data:
         try:
             send_log("Splitting callback_data...") # Log before split
