@@ -73,7 +73,7 @@ def health_check():
 '''
 # api/index.py
 from flask import Flask, render_template, request
-from .handle import handle_message
+from .handle import handle_message, handle_callback_query 
 import logging
 from .textbook_processor import get_textbook_content # Import get_textbook_content - Corrected import
 
