@@ -643,7 +643,7 @@ def explain_concept(from_id, concept, textbook_id):
             current_time = time.time()
             time_since_last_chunk = current_time - last_chunk_time
 
-            if len(buffered_message) > 5000 or time_since_last_chunk >= 5:
+            if len(buffered_message) > 4000 or time_since_last_chunk >= 5:
                 send_message(from_id, buffered_message)
                 buffered_message = ""
                 last_chunk_time = current_time
@@ -689,7 +689,7 @@ def create_questions(from_id, concept, textbook_id):
             current_time = time.time()
             time_since_last_chunk = current_time - last_chunk_time
 
-            if len(buffered_message) > 2000 or time_since_last_chunk >= 3:
+            if len(buffered_message) > 4000 or time_since_last_chunk >= 4:
                 send_message(from_id, buffered_message)
                 buffered_message = ""
                 last_chunk_time = current_time
@@ -717,7 +717,7 @@ def prepare_short_note(from_id, topic, textbook_id):
         page_refs = f"(Pages: {', '.join(map(str, topic_pages))})" # Create page number reference string
         prompt = f"Prepare a short, concise but comprehensive study note on the topic of '{topic}' based on the Grade 9 textbook '{textbook_id}', drawing from pages {page_refs}. Focus on key points and make it easy to understand for a Grade 9 student. Limit the note to around 5-6 key points if possible.\n\n---\n{context_text}\n---" # More detailed prompt
     else: # If not found, use general prompt
-        prompt = f"Prepare a short, concise but comprehensive study note on the topic of '{topic}'. Focus on key points and make it easy to understand for a Grade 9 student. Limit the note to around 3-4 key points if possible." # More detailed general prompt
+        prompt = f"Prepare a short, concise but comprehensive study note on the topic of '{topic}'. Focus on key points and make it easy to understand for a Grade 9 student. Limit the note to around 6 key points if possible." # More detailed general prompt
         page_refs = "(Textbook page not found)"
 
     response = generate_content(prompt)
