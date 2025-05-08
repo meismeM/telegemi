@@ -1,149 +1,177 @@
-# api/gemini.py
-from io import BytesIO
-from typing import Dict, Iterator, Union # Added Union
+'''from io import BytesIO
 
 import google.generativeai as genai
 import PIL.Image
 
 from .config import GOOGLE_API_KEY, generation_config, safety_settings
 
-# Configure Gemini API
-if GOOGLE_API_KEY and GOOGLE_API_KEY[0]: # Check if API key list is not empty and first key exists
-    genai.configure(api_key=GOOGLE_API_KEY[0])
-else:
-    print("WARNING: GOOGLE_API_KEY is not configured or empty. Gemini functions will fail.")
-    # Optionally, raise an error or set a flag to disable Gemini features
-    # raise ValueError("GOOGLE_API_KEY is not configured.")
+genai.configure(api_key=GOOGLE_API_KEY[0])
 
-# Initialize models (consider error handling if API key is missing)
-try:
-    model_usual = genai.GenerativeModel(
-        model_name="gemini-1.5-flash-latest", # Use specific or latest version
-        generation_config=generation_config,
-        safety_settings=safety_settings)
+model_usual = genai.GenerativeModel(
+    model_name="gemini-2.0-flash",
+    generation_config=generation_config,
+    safety_settings=safety_settings)
 
-    model_vision = genai.GenerativeModel(
-        model_name="gemini-1.5-flash-latest", # Use specific or latest version for vision too
-        generation_config=generation_config,
-        safety_settings=safety_settings)
-except Exception as e:
-    print(f"ERROR configuring Gemini models: {e}. Ensure GOOGLE_API_KEY is valid.")
-    # Fallback or mock models if needed for testing without API key
-    model_usual = None
-    model_vision = None
+model_vision = genai.GenerativeModel(
+    model_name="gemini-2.0-flash",
+    generation_config=generation_config,
+    safety_settings=safety_settings)
 
 
 def list_models() -> None:
-    """Lists available Gemini models."""
-    if not genai.api_key:
-        print("Gemini API key not configured. Cannot list models.")
-        return
-    print("Available Gemini Models (supporting generateContent):")
+    """list all models"""
     for m in genai.list_models():
+        print(m)
         if "generateContent" in m.supported_generation_methods:
-            print(f"- {m.name}")
+            print(m.name)
 
-def generate_content(prompt: str) -> str: 
-    """Generates text from a prompt (non-streaming)."""
-    if not model_usual:
-        return "Error: Gemini text model is not initialized. Check API key and configuration."
+""" This function is deprecated """
+def generate_content(prompt: str) -> str:
+    """generate text from prompt"""
     try:
         response = model_usual.generate_content(prompt)
-        return response.text
+        result = response.text
     except Exception as e:
-        print(f"Gemini API error in generate_content: {e}")
-        return f"Oops! Something went wrong with the AI: {type(e).__name__}. Please try again later or rephrase your request."
+        result = f"Something went wrong!\n{repr(e)}\n\nThe content you entered may be inappropriate, please modify it and try again"
+    return result
+
 
 def generate_text_with_image(prompt: str, image_bytes: BytesIO) -> str:
-    """Generates text from a prompt and an image."""
-    if not model_vision:
-        return "Error: Gemini vision model is not initialized. Check API key and configuration."
+    """generate text from prompt and image"""
+    img = PIL.Image.open(image_bytes)
     try:
-        img = PIL.Image.open(image_bytes)
         response = model_vision.generate_content([prompt, img])
-        return response.text
+        result = response.text
     except Exception as e:
-        print(f"Gemini API error in generate_text_with_image: {e}")
-        return f"Oops! Something went wrong with processing the image and text: {type(e).__name__}. Please try again."
-
-def generate_content_stream(prompt: str) -> Iterator[str]:
-    """Generates content in streaming mode, yielding chunks of the response."""
-    if not model_usual:
-        yield "Error: Gemini text model is not initialized. Check API key and configuration."
-        return
-    try:
-        response_stream = model_usual.generate_content(prompt, stream=True) 
-        for chunk in response_stream: 
-            if chunk.text: # Ensure text exists in the chunk
-                yield chunk.text
-    except Exception as e:
-        print(f"Gemini API streaming error in generate_content_stream: {e}")
-        yield f"Oops! A streaming error occurred with the AI: {type(e).__name__}. Please try again."
+        result = f"Something went wrong!\n{repr(e)}\n\nThe content you entered may be inappropriate, please modify it and try again"
+    return result
 
 
 class ChatConversation:
-    """Manages an ongoing chat session with Gemini."""
+    """
+    Kicks off an ongoing chat. If the input is /new,
+    it triggers the start of a fresh conversation.
+    """
 
     def __init__(self) -> None:
-        if not model_usual:
-            print("WARNING: ChatConversation initialized but Gemini model_usual is not available.")
-            self.chat = None # Or a mock chat object
-        else:
-            self.chat = model_usual.start_chat(history=[])
+        self.chat = model_usual.start_chat(history=[])
 
-    def send_message(self, prompt: str, stream: bool = False) -> Union[str, Iterator[str]]:
-        """
-        Sends a message to the chat.
-        Returns a string for non-streaming, or an iterator for streaming.
-        """
-        if not self.chat:
-            no_chat_msg = "Error: Chat session not initialized (Gemini model might be unavailable)."
-            return iter([no_chat_msg]) if stream else no_chat_msg
-
+    def send_message(self, prompt: str) -> str:
+        """send message"""
         if prompt.startswith("/new"):
-            self.__init__() # Start a fresh chat
-            fresh_chat_msg = "We're having a fresh chat now!"
-            return iter([fresh_chat_msg]) if stream else fresh_chat_msg
-        
-        try:
-            if stream:
-                response_stream = self.chat.send_message(prompt, stream=True)
-                def stream_generator():
-                    for chunk in response_stream:
-                        if chunk.text:
-                            yield chunk.text
-                return stream_generator()
-            else: # Non-streaming
+            self.__init__()
+            result = "We're having a fresh chat."
+        else:
+            try:
                 response = self.chat.send_message(prompt)
-                return response.text
-        except Exception as e:
-            print(f"Gemini API error in ChatConversation.send_message: {e}")
-            error_message = f"Oops! AI conversation error: {type(e).__name__}."
-            return iter([error_message]) if stream else error_message
+                result = response.text
+            except Exception as e:
+                result = f"Something went wrong!\n{repr(e)}\n\nThe content you entered may be inappropriate, please modify it and try again"
+        return result
 
     @property
     def history(self):
-        return self.chat.history if self.chat else []
+        return self.chat.history
 
     @property
     def history_length(self):
-        return len(self.chat.history) if self.chat else 0
+        return len(self.chat.history)
 
 
 if __name__ == "__main__":
-    list_models()
-    # Example usage (requires GOOGLE_API_KEY to be set in environment)
-    # if model_usual:
-    #     print("\nTesting generate_content:")
-    #     print(generate_content("Tell me a short joke."))
-    #     print("\nTesting ChatConversation (non-streaming):")
-    #     chat_session = ChatConversation()
-    #     print(chat_session.send_message("Hello Gemini!"))
-    #     print(chat_session.send_message("What is the capital of France?"))
-    #     print("\nTesting ChatConversation (streaming):")
-    #     chat_session_stream = ChatConversation()
-    #     print(next(chat_session_stream.send_message("/new", stream=True))) # Clear for stream test
-    #     stream_response = chat_session_stream.send_message("Explain quantum physics in one sentence.", stream=True)
-    #     for chunk in stream_response:
-    #         print(chunk, end='', flush=True)
-    #     print()
+    print(list_models())'''
+# api/gemini.py
+from io import BytesIO
+from typing import Dict
+
+import google.generativeai as genai
+import PIL.Image
+
+from .config import GOOGLE_API_KEY, generation_config, safety_settings
+
+genai.configure(api_key=GOOGLE_API_KEY[0])
+
+model_usual = genai.GenerativeModel(
+    model_name="gemini-2.0-flash",
+    generation_config=generation_config,
+    safety_settings=safety_settings)
+
+model_vision = genai.GenerativeModel(
+    model_name="gemini-2.0-flash",
+    generation_config=generation_config,
+    safety_settings=safety_settings)
+
+
+def list_models() -> None:
+    """list all models"""
+    for m in genai.list_models():
+        print(m)
+        if "generateContent" in m.supported_generation_methods:
+            print(m.name)
+
+""" This function is deprecated """
+def generate_content(prompt: str) -> str: # Keep the original generate_content for non-streaming cases
+    """generate text from prompt"""
+    try:
+        response = model_usual.generate_content(prompt)
+        result = response.text
+    except Exception as e:
+        result = f"Something went wrong!\n{repr(e)}\n\nThe content you entered may be inappropriate, please modify it and try again"
+    return result
+
+
+def generate_text_with_image(prompt: str, image_bytes: BytesIO) -> str:
+    """generate text from prompt and image"""
+    img = PIL.Image.open(image_bytes)
+    try:
+        response = model_vision.generate_content([prompt, img])
+        result = response.text
+    except Exception as e:
+        result = f"Something went wrong!\n{repr(e)}\n\nThe content you entered may be inappropriate, please modify it and try again"
+    return result
+
+# [!HIGHLIGHT!] New streaming function
+def generate_content_stream(prompt: str):
+    """Generates content in streaming mode, yielding chunks of the response."""
+    try:
+        response_stream = model_usual.generate_content(prompt, stream=True) # stream=True enables streaming
+        for chunk in response_stream: # Iterate through response chunks
+            yield chunk.text # Yield text content of each chunk
+    except Exception as e:
+        error_message = f"Something went wrong!\n{repr(e)}\n\nThe content you entered may be inappropriate, please modify it and try again"
+        yield error_message # Yield error message as a single chunk
+
+
+class ChatConversation:
+    """
+    Kicks off an ongoing chat. If the input is /new,
+    it triggers the start of a fresh conversation.
+    """
+
+    def __init__(self) -> None:
+        self.chat = model_usual.start_chat(history=[])
+
+    def send_message(self, prompt: str) -> str:
+        """send message"""
+        if prompt.startswith("/new"):
+            self.__init__()
+            result = "We're having a fresh chat."
+        else:
+            try:
+                response = self.chat.send_message(prompt)
+                result = response.text
+            except Exception as e:
+                result = f"Something went wrong!\n{repr(e)}\n\nThe content you entered may be inappropriate, please modify it and try again"
+        return result
+
+    @property
+    def history(self):
+        return self.chat.history
+
+    @property
+    def history_length(self):
+        return len(self.chat.history)
+
+
+if __name__ == "__main__":
+    print(list_models())

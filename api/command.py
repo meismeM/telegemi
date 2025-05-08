@@ -1,441 +1,853 @@
-# api/command.py
-from time import sleep
-import time 
-import google.generativeai as genai # Keep for list_models, though actual generation is via gemini.py
-import re # For answer_exercise regex
+"""from time import sleep
+
+import google.generativeai as genai
 
 from .auth import is_admin
-from .config import ALLOWED_USERS, IS_DEBUG_MODE, GOOGLE_API_KEY, AVAILABLE_TEXTBOOKS_FOR_KEYBOARD
+from .config import ALLOWED_USERS,IS_DEBUG_MODE,GOOGLE_API_KEY
 from .printLog import send_log
-from .telegram import send_message # For direct messaging from commands if needed (e.g., status updates)
-from .textbook_processor import get_textbook_data, search_concept_pages, get_text_from_pages
-from .gemini import generate_content, generate_content_stream
+from .telegram import send_message
 
-admin_auch_info = "⛔️ You are not authorized to use this command."
-debug_mode_info = "ℹ️ This command is only available in debug mode."
+admin_auch_info = "You are not the administrator or your administrator ID is set incorrectly!!!"
+debug_mode_info = "Debug mode is not enabled!"
 
-# --- Helper for argument parsing ---
-def _parse_args(args_str: str, num_expected_parts: int = 2) -> list[str] | None:
-    """
-    Parses arguments string. Expects last part to be textbook_id or similar single token.
-    The rest is joined as the first argument (concept/topic/query).
-    Returns a list of [multi_word_arg, last_arg] or None if parsing fails.
-    """
-    if not args_str:
-        return None
-    
-    parts = args_str.strip().rsplit(" ", 1) # Split from right, once
-    if len(parts) == num_expected_parts:
-        # Ensure textbook_id is valid if it's one of the known ones
-        # if num_expected_parts == 2 and parts[1] not in AVAILABLE_TEXTBOOKS_FOR_KEYBOARD:
-            # This check might be too strict if we allow arbitrary textbook IDs not in the keyboard list
-            # For now, we assume it's a valid ID passed by the keyboard flow or a knowledgeable user.
-            # pass
-        return parts
-    elif num_expected_parts == 1 and len(parts) <= 1 : # For commands expecting only one (possibly multi-word) arg
-        return [args_str.strip()]
-    return None
+def help():
+    help_text = "Welcome to Gemini 2.0 flash AI! Interact through text or images and experience insightful answers. Unlock the power of AI-driven communication – every message is a chance for a smarter exchange. Send text or image!\n Experience the power of AI-driven communication through insightful answers, text, or images. \n👾 Features \n Answer any question, even challenging or strange ones. \n ⏩ Generate creative text formats like poems, scripts, code, emails, and more. \n ⏩ Translate languages effortlessly. \n ⏩ Simplify complex concepts with clear explanations. \n ⏩  Perform math and calculations. \n ⏩ Assist with research and creative content generation. \n ⏩ Provide fun with word games, quizzes, and much more!\n ⏩ Send a text or image and unlock smarter exchanges. Don’t forget to join the channels below for more: And most importantly join the channels:  \n [Channel 1](https://t.me/+gOUK4JnBcCtkYWQ8) \n [Channel 2](https://t.me/telegemin). \n ወደ ጀሚኒ 1.5 ፕሮ አርቴፊሻል ኢንተለጀንስ እንኳን ደህና መጡ! ድንቅ 3 ከፍተኛ ተጠቃሚዎች ያሉት ጎግል AI ፣ እኔ እዚህ ስፍር ቁጥር በሌላቸው መንገዶች ልረዳችሁ የምችል የአርቴፊሻል ኢንተለጀንስ ቻት ቦት ነኝ። በአስተዋይ መልሶች፣ በጽሑፍ ወይም በምስሎች የአርቴፊሻል ኢንተለጀንስ የተጎላበተ የግንኙነት ይለማመዱ። \n \n ⏩ ማንኛውንም ጥያቄ፣ ፈታኝ ወይም እንግዳ የሆኑትንም እንኳ መልስ ያግኙ። \n ⏩ እንደ ግጥም፣ ስክሪፕት፣ ኮድ፣ ኢሜይሎች እና ሌሎችም ያሉ የፈጠራ ጽሑፎችን ይፍጠሩ። \n ⏩ ቋንቋዎችን በቀላሉ መተርጎም። \n ⏩ ውስብስብ ጽንሰ-ሐሳቦችን በግልጽ ማብራራት። \n ⏩ የሂሳብ ስሌቶችን መስራት። \n ⏩ በምርምር እና በፈጠራ ይዘት ያላቸው ፅሁፎች። \n ⏩ በቃላት ጨዋታዎች፣ ጥያቄዎች እና በብዙ ተጨማሪ ነገሮች ይዝናኑ!\n ⏩ ጽሑፍ ወይም ምስል ይላኩ እና መልስ ያግኙ። ለተጨማሪ መረጃ ከታች ባሉት ቻናሎች መቀላቀልዎን አይርሱ።"
+    command_list = "/new - Start a new chat" #\n/get_my_info - Get personal information\n/get_allowed_users - Get the list of users allowed to use robots (available only to admin)\n/list_models - List available models (available only to admin)\n/get_api_key - Get API key (available only to admin)"
+    result = f"{help_text}\n\n{command_list}"
+    return result
+
+def list_models():
+    for m in genai.list_models():
+        send_log(str(m))
+        if 'generateContent' in m.supported_generation_methods:
+            send_log(str(m.name))
+    return ""
+
+def get_allowed_users():
+    send_log(f"```json\n{ALLOWED_USERS}```")
+    return ""
 
 
-# --- Command Functions ---
-def help_command(from_id: int):
-    help_text_main = (
-        "Welcome to your AI Study Assistant! 🤖\n\n"
-        "I can help you with your Grade 9 textbooks. You can interact with me by typing messages, "
-        "sending photos, or using the interactive study tools.\n\n"
-        "**Key Features:**\n"
-        "💬 **General Chat:** Ask me anything! I'll try my best to answer.\n"
-        "🖼️ **Image Understanding:** Send a photo, and I can describe it or answer questions about it.\n"
-        "📚 **Interactive Study Tools:** Use the `/study` command for guided help with your textbooks."
-    )
-    
-    commands_list = (
-        "\n\n**Available Commands:**\n"
-        "`/study` - Access interactive tools (explain, notes, questions).\n"
-        "`/new` - Start a fresh chat conversation with me.\n"
-        "`/help` - Show this help message.\n"
-        "`/get_my_info` - Display your Telegram ID."
-    )
-    
-    admin_commands_header = "\n\n**Admin Commands (requires authorization & debug mode):**"
-    admin_commands_list = (
-        "`/get_allowed_users` - List users authorized to use the bot.\n"
-        "`/get_api_key` - Show partial Google API Key status.\n"
-        "`/list_models` - List available AI models.\n"
-        "`/send_message <user_id> <text>` - Send a message to a user."
-    )
+def get_API_key():
+    send_log(f"```json\n{GOOGLE_API_KEY}```")
+    return ""
 
-    full_help = help_text_main + commands_list
-    if is_admin(from_id) and IS_DEBUG_MODE == '1':
-        full_help += admin_commands_header + admin_commands_list
-        
-    # Adding Amharic text (ensure your terminal/editor supports UTF-8)
-    amharic_intro = (
-        "\n\n---\n"
-        "ወደ ጀሚኒ 1.5 ፕሮ አርቴፊሻል ኢንተለጀንስ እንኳን ደህና መጡ! "
-        "እኔ በተለያዩ መንገዶች ልረዳችሁ የምችል የአርቴፊሻል ኢንተለጀንስ ቻት ቦት ነኝ። "
-        "በአስተዋይ መልሶች፣ በጽሑፍ ወይም በምስሎች የአርቴፊሻል ኢንተለጀንስ የተጎላበተ ግንኙነት ይለማመዱ።\n\n"
-        "⏩ ማንኛውንም ጥያቄ ይመልሱ።\n"
-        "⏩ የፈጠራ ጽሑፎችን ይፍጠሩ።\n"
-        "⏩ ቋንቋዎችን በቀላሉ ይተርጉሙ።\n"
-        "⏩ ውስብስብ ፅንሰ ሀሳቦችን ያብራሩ።"
-    )
-    # full_help += amharic_intro # Uncomment if Amharic text is desired
+def speed_test(id):
+    send_message(id, "开始测速")
+    sleep(5)
+    return "测试完成，您的5G速度为：\n**114514B/s**"
 
-    # Channel links - ensure these are valid
-    channel_links = (
-        "\n\n**Join our channels for updates:**\n"
-        "[Channel 1](https://t.me/+gOUK4JnBcCtkYWQ8)\n" # Example link
-        "[Channel 2](https://t.me/telegemin)" # Example link
-    )
-    # full_help += channel_links # Uncomment if channel links are desired
-
-    return full_help
-
-def list_models_command():
-    if not genai.api_key:
-        return "Gemini API key not configured. Cannot list models."
-    models_info = []
+def send_message_test(id, command):
+    if not is_admin(id):
+        return admin_auch_info
+    a = command.find(" ")
+    b = command.find(" ", a + 1)
+    if a == -1 or b == -1:
+        return "Command format error"
+    to_id = command[a+1:b]
+    text = command[b+1:]
     try:
-        for m in genai.list_models():
-            if 'generateContent' in m.supported_generation_methods:
-                models_info.append(f"- `{m.name}`")
-        if models_info:
-            return "Available Gemini models (supporting `generateContent`):\n" + "\n".join(models_info)
-        return "No Gemini models found with `generateContent` support."
+        send_message(to_id, text)
     except Exception as e:
-        return f"Error listing models: {e}"
-
-def get_allowed_users_command():
-    if ALLOWED_USERS:
-        return f"Authorized users/IDs:\n`{', '.join(ALLOWED_USERS)}`"
-    return "No specific users are whitelisted (AUCH_ENABLE might be '0')."
-
-def get_api_key_command():
-    if GOOGLE_API_KEY and GOOGLE_API_KEY[0]: # Check first key in the list
-        key_preview = GOOGLE_API_KEY[0][:4] + "..." + GOOGLE_API_KEY[0][-4:]
-        return f"Google API Key is set. Preview: `{key_preview}`"
-    return "Google API Key is not set or is empty."
-
-def speed_test_command(chat_id: int):
-    send_message(chat_id, "⏱️ Starting speed test...")
-    sleep(1.5) # Reduced sleep
-    # This is a mock speed, not a real test
-    return "✅ Speed test complete!\nYour simulated connection speed: **114514 B/s** (mock value)"
-
-def send_message_admin_command(admin_id: int, args_str: str):
-    parts = args_str.split(" ", 1)
-    if len(parts) < 2:
-        return "Usage: /send_message `<user_id>` `<text_to_send>`"
-    
-    try:
-        target_user_id = int(parts[0])
-    except ValueError:
-        return "Invalid `user_id`. It must be a number."
-    
-    message_text_to_send = parts[1]
-    
-    try:
-        send_message(target_user_id, f"ℹ️ Message from Administrator:\n\n{message_text_to_send}")
-        send_log(f"Admin (ID:`{admin_id}`) sent message to User ID:`{target_user_id}`: '{message_text_to_send[:50]}...'")
-        return f"Message sent to User ID:`{target_user_id}`."
-    except Exception as e:
-        send_log(f"Error sending admin message from ID:`{admin_id}` to User ID:`{target_user_id}`: {e}")
-        return f"Failed to send message: {type(e).__name__}"
-
-
-# --- Textbook Interaction Functions (called by interactive flow or direct commands) ---
-
-def explain_concept_logic(user_id: int, concept: str, textbook_id: str):
-    """Logic for explaining a concept. Sends messages directly for streaming."""
-    send_message(user_id, f"⏳ Looking up '{concept}' in '{AVAILABLE_TEXTBOOKS_FOR_KEYBOARD.get(textbook_id, textbook_id)}'...")
-    
-    concept_pages = search_concept_pages(textbook_id, concept, max_pages=3) # Limit pages for context
-    context_text = ""
-    page_refs_str = f"(Textbook: {AVAILABLE_TEXTBOOKS_FOR_KEYBOARD.get(textbook_id, textbook_id)})" # Default page ref
-
-    if concept_pages:
-        context_text = get_text_from_pages(textbook_id, concept_pages)
-        page_numbers_display = ", ".join(map(str, sorted(list(set(concept_pages)))))
-        page_refs_str = f"(Source: {AVAILABLE_TEXTBOOKS_FOR_KEYBOARD.get(textbook_id, textbook_id)}, pages {page_numbers_display})"
-        prompt = (f"Explain the concept of '{concept}' in a clear and detailed way suitable for a Grade 9 student. "
-                  f"Base your explanation on the following excerpt from pages {page_numbers_display} of the textbook '{textbook_id}':\n\n"
-                  f"---\n{context_text}\n---\n\n"
-                  f"Explanation for '{concept}':")
-    else:
-        page_refs_str = f"(Concept '{concept}' not found in {AVAILABLE_TEXTBOOKS_FOR_KEYBOARD.get(textbook_id, textbook_id)}. General explanation provided.)"
-        prompt = (f"Explain the concept of '{concept}' in a clear and detailed way suitable for a Grade 9 student. "
-                  f"The concept was not found in the specified textbook, so provide a general explanation.")
-
-    # Streaming response
-    response_stream = generate_content_stream(prompt)
-    buffered_message = ""
-    last_chunk_time = time.time()
-    full_response_for_log = ""
-
-    try:
-        for chunk_text in response_stream:
-            if chunk_text:
-                buffered_message += chunk_text
-                full_response_for_log += chunk_text
-
-            current_time = time.time()
-            # Send if buffer is large or if some time passed with content in buffer
-            if len(buffered_message) >= 3500 or \
-               (buffered_message.strip() and (current_time - last_chunk_time >= 2.5)):
-                if buffered_message.strip():
-                    send_message(user_id, buffered_message)
-                buffered_message = ""
-                last_chunk_time = current_time
-                time.sleep(0.05) # Small delay to allow messages to arrive in order
-
-    except Exception as e:
-        error_msg = f"⚠️ Error streaming explanation: {type(e).__name__}"
-        send_message(user_id, error_msg)
-        send_log(f"Streaming error for /explain '{concept}' ({textbook_id}): {e}\nPartial response: {full_response_for_log[:200]}")
-        send_message(user_id, page_refs_str) # Send page refs even on error
-        return # Function handles its own output
-
-    if buffered_message.strip(): # Send any remaining text
-        send_message(user_id, buffered_message)
-    
-    send_message(user_id, page_refs_str) # Send page references at the end
-    send_log(f"Streamed /explain '{concept}' ({textbook_id}) to User ID:`{user_id}`. Response length: {len(full_response_for_log)}")
-    # This function returns None as it handles its own output via send_message.
-
-
-def prepare_short_note_logic(user_id: int, topic: str, textbook_id: str) -> Optional[str]:
-    """Logic for preparing a short note. Returns the note as a string or None on error."""
-    send_message(user_id, f"📝 Preparing a short note on '{topic}' from '{AVAILABLE_TEXTBOOKS_FOR_KEYBOARD.get(textbook_id, textbook_id)}'...")
-
-    topic_pages = search_concept_pages(textbook_id, topic, max_pages=4)
-    context_text = ""
-    page_refs_str = f"(Textbook: {AVAILABLE_TEXTBOOKS_FOR_KEYBOARD.get(textbook_id, textbook_id)})"
-
-    if topic_pages:
-        context_text = get_text_from_pages(textbook_id, topic_pages)
-        page_numbers_display = ", ".join(map(str, sorted(list(set(topic_pages)))))
-        page_refs_str = f"(Source: {AVAILABLE_TEXTBOOKS_FOR_KEYBOARD.get(textbook_id, textbook_id)}, pages {page_numbers_display})"
-        prompt = (f"Prepare a concise but comprehensive study note on the topic of '{topic}' for a Grade 9 student. "
-                  f"Base this note on the following excerpt from pages {page_numbers_display} of the textbook '{textbook_id}'. "
-                  f"Focus on 5-6 key bullet points or short paragraphs. Make it easy to understand and memorize.\n\n"
-                  f"---\n{context_text}\n---\n\n"
-                  f"Study note for '{topic}':")
-    else:
-        page_refs_str = f"(Topic '{topic}' not found in {AVAILABLE_TEXTBOOKS_FOR_KEYBOARD.get(textbook_id, textbook_id)}. General note provided.)"
-        prompt = (f"Prepare a concise study note on the topic of '{topic}' for a Grade 9 student. "
-                  f"Focus on 5-6 key bullet points or short paragraphs. Make it easy to understand and memorize. "
-                  f"The topic was not found in the specified textbook, so provide a general note.")
-
-    response = generate_content(prompt) # Non-streaming for notes
-    if "Error:" in response or "Oops!" in response : # Check if Gemini returned an error
-        final_response = f"⚠️ Could not generate note for '{topic}'. AI Error: {response}"
-    else:
-        final_response = f"**Study Note: {topic}**\n\n{response}\n\n{page_refs_str}"
-    
-    send_log(f"Generated note for /note '{topic}' ({textbook_id}) for User ID:`{user_id}`. Response length: {len(response)}")
-    return final_response
-
-
-def create_questions_logic(user_id: int, concept: str, textbook_id: str):
-    """Logic for creating questions. Sends messages directly for streaming."""
-    send_message(user_id, f"❓ Generating questions for '{concept}' from '{AVAILABLE_TEXTBOOKS_FOR_KEYBOARD.get(textbook_id, textbook_id)}'...")
-
-    concept_pages = search_concept_pages(textbook_id, concept, max_pages=3)
-    context_text = ""
-    page_refs_str = f"(Textbook: {AVAILABLE_TEXTBOOKS_FOR_KEYBOARD.get(textbook_id, textbook_id)})"
-
-    if concept_pages:
-        context_text = get_text_from_pages(textbook_id, concept_pages)
-        page_numbers_display = ", ".join(map(str, sorted(list(set(concept_pages)))))
-        page_refs_str = f"(Questions based on {AVAILABLE_TEXTBOOKS_FOR_KEYBOARD.get(textbook_id, textbook_id)}, pages {page_numbers_display})"
-        prompt = (f"Generate 10-15 review questions about the concept of '{concept}' for a Grade 9 student. "
-                  f"Base these questions on the excerpt from pages {page_numbers_display} of the textbook '{textbook_id}'. "
-                  f"Include a mix of question types (e.g., 5 multiple choice with A,B,C,D options, 5 true/false, 3 short answer). "
-                  f"Provide the correct answer immediately after each question (e.g., 'Answer: B' or 'Answer: True' or 'Answer: [short answer]').\n\n"
-                  f"---\n{context_text}\n---\n\n"
-                  f"Review questions for '{concept}':")
-    else:
-        page_refs_str = (f"(Concept '{concept}' not found in {AVAILABLE_TEXTBOOKS_FOR_KEYBOARD.get(textbook_id, textbook_id)}. "
-                         f"General questions provided.)")
-        prompt = (f"Generate 10-15 review questions about the concept of '{concept}' for a Grade 9 student. "
-                  f"Include a mix of question types (e.g., multiple choice, true/false, short answer). "
-                  f"Provide the correct answer immediately after each question. "
-                  f"The concept was not found in the specified textbook, so generate general questions.")
-
-    # Streaming response
-    response_stream = generate_content_stream(prompt)
-    # (Similar streaming logic as explain_concept_logic)
-    buffered_message = ""
-    last_chunk_time = time.time()
-    full_response_for_log = ""
-    try:
-        for chunk_text in response_stream:
-            if chunk_text:
-                buffered_message += chunk_text
-                full_response_for_log += chunk_text
-            current_time = time.time()
-            if len(buffered_message) >= 3500 or \
-               (buffered_message.strip() and (current_time - last_chunk_time >= 2.5)):
-                if buffered_message.strip(): send_message(user_id, buffered_message)
-                buffered_message = ""
-                last_chunk_time = current_time
-                time.sleep(0.05)
-    except Exception as e:
-        error_msg = f"⚠️ Error streaming questions: {type(e).__name__}"
-        send_message(user_id, error_msg)
-        send_log(f"Streaming error for /create_questions '{concept}' ({textbook_id}): {e}\nPartial: {full_response_for_log[:200]}")
-        send_message(user_id, page_refs_str)
+        send_log(f"err:\n{e}")
         return
-    if buffered_message.strip(): send_message(user_id, buffered_message)
-    send_message(user_id, page_refs_str)
-    send_log(f"Streamed /create_questions '{concept}' ({textbook_id}) to User ID:`{user_id}`. Resp len: {len(full_response_for_log)}")
-    # Returns None, handles own output
+    send_log("success")
+    return ""
 
+def excute_command(from_id, command):
+    if command == "start" or command == "help":
+        return help()
 
-def answer_exercise_logic(user_id: int, exercise_query: str, textbook_id: str) -> Optional[str]:
-    """Logic for answering an exercise. Returns the answer as a string or None on error."""
-    send_message(user_id, f"🔍 Searching for exercise '{exercise_query}' in '{AVAILABLE_TEXTBOOKS_FOR_KEYBOARD.get(textbook_id, textbook_id)}'...")
+    elif command == "get_my_info":
+        result = f"your telegram id is: `{from_id}`"
+        return result
 
-    textbook_data = get_textbook_data(textbook_id)
-    if not textbook_data or "chunks" not in textbook_data:
-        return f"⚠️ Textbook '{textbook_id}' not found or has no content. Please ensure it's preprocessed."
+    elif command == "5g_test":
+        return speed_test(from_id)
 
-    # Simple approach: combine all text for searching. Could be optimized.
-    full_textbook_content = "\n\n".join([chunk.get("text", "") for chunk in textbook_data["chunks"]])
-    if not full_textbook_content.strip():
-        return f"⚠️ Textbook '{textbook_id}' seems to have empty content."
+    elif command.startswith("send_message"):
+        return send_message_test(from_id, command)
 
-    # Regex to find exercise numbers/ids - this is highly dependent on PDF text quality
-    # Example: "Question 1.2", "Exercise 3a", "Review Question 5"
-    # This regex is a starting point and might need significant tuning.
-    exercise_regex_str = rf"((?:Review\s+Questions?|Exercises?|Problems?|Tasks?)\s*(?:[:.]|\n))?\s*(?:Question|Exercise|Problem|Task|No\.|#)?\s*({re.escape(exercise_query)}[\w\.\-]*)(\s|\n|$)"
-    # A simpler regex might be better if the query itself is fairly unique, e.g., "Question 3.1".
-    # We are looking for the query string itself.
-    
-    context_text = ""
-    match_found_flag = False
-    
-    # Try to find the exact query phrase first.
-    query_lower = exercise_query.lower()
-    query_start_index = full_textbook_content.lower().find(query_lower)
+    elif command in ["get_allowed_users", "get_api_key", "list_models"]:
+        if not is_admin(from_id):
+            return admin_auch_info
+        if IS_DEBUG_MODE == "0":
+            return debug_mode_info
 
-    if query_start_index != -1:
-        match_found_flag = True
-        # Extract a window around the found query
-        context_start = max(0, query_start_index - 500) # Characters before
-        context_end = min(len(full_textbook_content), query_start_index + len(exercise_query) + 1500) # Characters after
-        context_text = full_textbook_content[context_start:context_end]
-        send_log(f"Found direct mention of '{exercise_query}' in {textbook_id}. Using surrounding context.")
+        if command == "get_allowed_users":
+            return get_allowed_users()
+        elif command == "get_api_key":
+            return get_API_key()
+        elif command == "list_models":
+            return list_models()
+
     else:
-        # Fallback: If direct query not found, try a broader search or inform user.
-        # For now, we'll say not found if the exact query isn't there as regex is too unreliable alone.
-        send_log(f"Direct mention of '{exercise_query}' not found in {textbook_id}.")
-        # We could try regex here as a fallback, but it's often noisy.
-        # For now, let's proceed with empty context if direct search fails, Gemini might still answer generally.
+        result = "Invalid command, use /help for help"
+        return result 
 
-    if not match_found_flag: # Or if context_text is still empty after fallback
-         return (f"⚠️ Exercise query '{exercise_query}' was not clearly found in "
-                 f"'{AVAILABLE_TEXTBOOKS_FOR_KEYBOARD.get(textbook_id, textbook_id)}'. "
-                 f"Please try a more specific or different phrasing (e.g., 'Question 2.1b' or a unique phrase from the question).")
+from time import sleep
 
-    prompt = (f"Based on the following excerpt from the textbook '{textbook_id}', "
-              f"please provide a detailed answer to the exercise: '{exercise_query}'. "
-              f"If it's a calculation, show steps. If it's a conceptual question, explain thoroughly.\n\n"
-              f"---\nTEXTBOOK EXCERPT (may or may not contain the exact question, provide best effort based on this context):\n{context_text}\n---\n\n"
-              f"Question to answer: '{exercise_query}'\n\nDetailed Answer:")
-    
+import google.generativeai as genai
+
+from .auth import is_admin
+from .config import ALLOWED_USERS,IS_DEBUG_MODE,GOOGLE_API_KEY
+from .printLog import send_log
+from .telegram import send_message
+from .textbook_processor import get_textbook_content
+from .gemini import generate_content
+
+admin_auch_info = "You are not the administrator or your administrator ID is set incorrectly!!!"
+debug_mode_info = "Debug mode is not enabled!"
+
+def help():
+    help_text = "Welcome to Gemini 2.0 flash AI! Interact through text or images and experience insightful answers. ... (rest of your help text) ..." # Keep your existing help text
+    command_list = "/new - Start new chat\n/explain [concept] [textbook_id] - Explain a concept from textbook\n/note [topic] [textbook_id] - Prepare short note on a topic\n/answer [exercise_query] [textbook_id] - Answer exercise (WIP)" # Added explain, note, answer to command list
+    result = f"{help_text}\n\n{command_list}"
+    return result
+
+# ... (list_models, get_allowed_users, get_API_key, speed_test, send_message_test - no changes needed) ...
+
+def explain_concept(from_id, concept, textbook_id):
+    #Explains a concept, using textbook context if available, otherwise general AI.
+    textbook_content = get_textbook_content(textbook_id)
+    context_text = None # Initialize context_text to None
+
+    if textbook_content: # Check if textbook content is loaded
+        search_term = concept
+        start_index = textbook_content.lower().find(search_term.lower())
+        if start_index != -1: # Concept found in textbook
+            context_start = max(0, start_index - 500)
+            context_end = min(len(textbook_content), start_index + 1000)
+            context_text = textbook_content[context_start:context_end]
+
+    if context_text: # If textbook context was found, use it in prompt
+        prompt = f"Explain the concept of '{concept}' based on the following excerpt from the Grade 9 textbook '{textbook_id}':\n\n---\n{context_text}\n---\n\nProvide a clear and concise explanation suitable for a Grade 9 student."
+    else: # If no textbook context found, use general prompt
+        prompt = f"Explain the concept of '{concept}' in a clear and concise way, suitable for a Grade 9 student."
+
     response = generate_content(prompt)
-    if "Error:" in response or "Oops!" in response:
-        final_response = f"⚠️ Could not generate answer for '{exercise_query}'. AI Error: {response}"
+    return response
+
+def prepare_short_note(from_id, topic, textbook_id):
+    #Prepares a short note on a topic, using textbook context if available, otherwise general AI.
+    textbook_content = get_textbook_content(textbook_id)
+    context_text = None # Initialize context_text to None
+
+    if textbook_content: # Check if textbook content is loaded
+        search_term = topic
+        start_index = textbook_content.lower().find(search_term.lower())
+        if start_index != -1: # Topic found in textbook
+            context_start = max(0, start_index - 500)
+            context_end = min(len(textbook_content), start_index + 1000)
+            context_text = textbook_content[context_start:context_end]
+
+    if context_text: # If textbook context was found, use it in prompt
+        prompt = f"Prepare a short, concise study note on the topic of '{topic}' based on the following excerpt from the Grade 9 textbook '{textbook_id}'. Focus on the key points and make it easy to understand for a Grade 9 student. Limit the note to around 3-4 key points.\n\n---\n{context_text}\n---"
+    else: # If no textbook context found, use general prompt
+        prompt = f"Prepare a short, concise study note on the topic of '{topic}'. Focus on the key points and make it easy to understand for a Grade 9 student. Limit the note to around 3-4 key points."
+
+    response = generate_content(prompt)
+    return response
+
+
+def answer_exercise(from_id, exercise_query, textbook_id):
+    #Answers an exercise from a textbook.
+    textbook_content = get_textbook_content(textbook_id)
+    if not textbook_content:
+        return f"Textbook with ID '{textbook_id}' not found."
+
+    import re
+    exercise_regex = re.compile(rf"(Review Questions)?\s*(Part [IVX]+:)?\s*(Question|exercise)\s*([\d.]+)", re.IGNORECASE)
+
+    best_match_start = -1
+    best_match_end = -1
+    context_text = "Exercise not found."
+
+    query_parts = exercise_query.lower().split()
+
+    print(f"--- Searching for exercise: '{exercise_query}' ---")
+
+    found_matches = []
+
+    for match in exercise_regex.finditer(textbook_content.lower()):
+        full_match = match.group(0)
+        part = match.group(2)
+        question_type = match.group(3)
+        question_number = match.group(4)
+
+        match_score = 0
+        for query_part in query_parts:
+            if query_part in full_match.lower():
+                match_score += 1
+
+        found_matches.append({
+            "full_match": full_match,
+            "part": part,
+            "question_type": question_type,
+            "question_number": question_number,
+            "score": match_score
+        })
+
+        if best_match_start == -1 or match_score > best_match_score:
+            best_match_start = match.start()
+            best_match_end = match.end()
+            best_match_score = match_score
+
+    print("--- All Regex Matches Found (with scores): ---")
+    for match_info in found_matches:
+        print(f"  Match: '{match_info['full_match']}', Score: {match_info['score']}, Part: '{match_info['part']}', Type: '{match_info['question_type']}', Number: '{match_info['question_number']}'")
+
+    if best_match_start != -1 and best_match_score > 0 :
+        context_start = max(0, best_match_start - 500)
+        context_end = min(len(textbook_content), best_match_end + 1000)
+        context_text = textbook_content[context_start:context_text]
+        print(f"--- Best Match Found: '{context_text[:100]}...' (score: {best_match_score}) ---")
     else:
-        final_response = (f"**Answer for Exercise: {exercise_query}** "
-                          f"_(from {AVAILABLE_TEXTBOOKS_FOR_KEYBOARD.get(textbook_id, textbook_id)})_\n\n{response}")
+        print("--- No Suitable Exercise Match Found ---")
+        return f"Exercise '{exercise_query}' not found in textbook '{textbook_id}'."
 
-    send_log(f"Generated answer for /answer '{exercise_query}' ({textbook_id}) for User ID:`{user_id}`. Response length: {len(response)}")
-    return final_response
+    prompt = f"Based on the following excerpt from a Grade 9 economics textbook, answer the review question:\n\n---\n{context_text}\n---\n\nSpecifically, answer exercise/question: '{exercise_query}'."
+    response = generate_content(prompt)
+    return response
 
 
-# --- Main Command Executor (for direct text commands) ---
-def excute_command(from_id: int, full_command_text: str) -> Optional[str]:
-    """
-    Executes direct text commands.
-    Returns a string to be sent back to the user, or None if command handles its own output or is invalid.
-    """
-    parts = full_command_text.strip().split(" ", 1)
-    command_name = parts[0].lower()
-    args_str = parts[1] if len(parts) > 1 else ""
+def excute_command(from_id, command):
+    if command == "start" or command == "help":
+        return help()
+    elif command == "get_my_info":
+        result = f"your telegram id is: `{from_id}`"
+        return result
+    elif command == "5g_test":
+        return speed_test(from_id)
+    elif command.startswith("send_message"):
+        return send_message_test(from_id, command)
+    elif command in ["get_allowed_users", "get_api_key", "list_models"]:
+        if not is_admin(from_id):
+            return admin_auch_info
+        if IS_DEBUG_MODE == "0":
+            return debug_mode_info
+        if command == "get_allowed_users":
+            return get_allowed_users()
+        elif command == "get_api_key":
+            return get_API_key()
+        elif command == "list_models":
+            return list_models()
 
-    if command_name == "help" or command_name == "start":
-        return help_command(from_id)
-    elif command_name == "get_my_info":
-        return f"Your Telegram ID is: `{from_id}`"
-    
-    # --- Admin & Debug Commands ---
-    if command_name == "list_models":
-        if not is_admin(from_id): return admin_auch_info
-        if IS_DEBUG_MODE != '1': return debug_mode_info
-        return list_models_command()
-    elif command_name == "get_allowed_users":
-        if not is_admin(from_id): return admin_auch_info
-        if IS_DEBUG_MODE != '1': return debug_mode_info
-        return get_allowed_users_command()
-    elif command_name == "get_api_key":
-        if not is_admin(from_id): return admin_auch_info
-        if IS_DEBUG_MODE != '1': return debug_mode_info
-        return get_api_key_command()
-    elif command_name == "send_message": # Admin sending message to a user
-        if not is_admin(from_id): return admin_auch_info
-        # if IS_DEBUG_MODE != '1': return debug_mode_info # Might allow admin to use this even if not debug
-        return send_message_admin_command(from_id, args_str)
+    elif command.startswith("explain"): # /explain concept textbook_id
+        parts = command.split(" ", 1)
+        if len(parts) == 2:
+            command_name, concept_and_textbook_id = parts
+            concept_parts = concept_and_textbook_id.split()
+            if concept_parts:
+                textbook_id = concept_parts[-1]
+                concept = " ".join(concept_parts[:-1])
+                return explain_concept(from_id, concept, textbook_id)
+            else:
+                return "Invalid command format. Use: /explain [concept] [textbook_id]"
+        else:
+            return "Invalid command format. Use: /explain [concept] [textbook_id]"
 
-    # --- Deprecated or less used commands ---
-    elif command_name == "5g_test": # Example of a simple command
-        return speed_test_command(from_id) # Pass chat_id (which is from_id for direct commands)
+    elif command.startswith("note"): # /note topic textbook_id
+        parts = command.split(" ", 1)
+        if len(parts) == 2:
+            command_name, topic_and_textbook_id = parts
+            topic_parts = topic_and_textbook_id.split()
+            if topic_parts:
+                textbook_id = topic_parts[-1]
+                topic = " ".join(topic_parts[:-1])
+                return prepare_short_note(from_id, topic, textbook_id)
+            else:
+                return "Invalid command format. Use: /note [topic] [textbook_id]"
+        else:
+            return "Invalid command format. Use: /note [topic] [textbook_id]"
 
-    # --- Commands that are now primarily handled by interactive flow ---
-    # These can still be invoked via text but might be less user-friendly.
-    # The interactive flow in handle.py calls the `_logic` functions directly.
-    
-    # Example: /explain demand curve economics9
-    parsed_args_explain = _parse_args(args_str, 2)
-    if command_name == "explain" and parsed_args_explain:
-        concept, textbook_id = parsed_args_explain
-        explain_concept_logic(from_id, concept, textbook_id)
-        return None # Output handled by the logic function
-    elif command_name == "explain": # Incorrect usage
-        return "Usage: `/explain <concept_phrase> <textbook_id>` (e.g., `/explain demand curve economics9`)"
+    elif command.startswith("answer"): # /answer exercise_query textbook_id (exercise_query can now include chapter_section)
+        parts = command.split(" ", 1)
+        if len(parts) == 2:
+            command_name, exercise_and_textbook_id = parts
+            exercise_parts = exercise_and_textbook_id.split()
+            if exercise_parts and len(exercise_parts) >= 1: # Expect at least exercise_query and textbook_id
+                textbook_id = exercise_parts[-1]
+                exercise_query_parts = exercise_parts[:-1] # Everything before textbook_id is exercise query
+                exercise_query = " ".join(exercise_query_parts)
+                return answer_exercise(from_id, exercise_query, textbook_id)
+            else:
+                return "Invalid command format. Use: /answer [exercise_query] [textbook_id]"
+        else:
+            return "Invalid command format. Use: /answer [exercise_query] [textbook_id]"
 
-    parsed_args_note = _parse_args(args_str, 2)
-    if command_name == "note" and parsed_args_note:
-        topic, textbook_id = parsed_args_note
-        return prepare_short_note_logic(from_id, topic, textbook_id)
-    elif command_name == "note":
-        return "Usage: `/note <topic_phrase> <textbook_id>`"
+    else:
+        result = "Invalid command, use /help for help"
+        return result
 
-    parsed_args_cq = _parse_args(args_str, 2)
-    if command_name == "create_questions" and parsed_args_cq:
-        concept, textbook_id = parsed_args_cq
-        create_questions_logic(from_id, concept, textbook_id)
-        return None # Output handled
-    elif command_name == "create_questions":
-        return "Usage: `/create_questions <concept_phrase> <textbook_id>`"
 
-    parsed_args_ans = _parse_args(args_str, 2)
-    if command_name == "answer" and parsed_args_ans:
-        query, textbook_id = parsed_args_ans
-        return answer_exercise_logic(from_id, query, textbook_id)
-    elif command_name == "answer":
-        return "Usage: `/answer <exercise_query> <textbook_id>`"
+        
+Let advance other commands and there output to have good result but general request 
+"""'''
+from time import sleep
 
-    # If command is not recognized by this point (and not /study or /new handled in handle.py)
-    # It could be a general text message if it wasn't prefixed with /.
-    # If it was prefixed with / and not caught, then it's an invalid command.
-    # `handle.py` will make this distinction. For `excute_command`, if it's called,
-    # it means it was a command.
-    
-    # Do not return "Invalid command" here, as /study and /new are handled in handle.py
-    # This function is for commands *other* than those.
-    # If a command reaches here and is not matched, it's effectively unhandled by this specific router.
-    # `handle.py` should provide the "Invalid command" message if appropriate.
-    return None # Signal that this command was not processed here
+import google.generativeai as genai
+
+from .auth import is_admin
+from .config import ALLOWED_USERS,IS_DEBUG_MODE,GOOGLE_API_KEY
+from .printLog import send_log
+from .telegram import send_message
+from .textbook_processor import get_textbook_content, search_concept_pages, get_text_from_pages
+from .gemini import generate_content
+
+admin_auch_info = "You are not the administrator or your administrator ID is set incorrectly!!!"
+debug_mode_info = "Debug mode is not enabled!"
+
+def help():
+    help_text = "Welcome to Gemini 2.0 flash AI! Interact through text or images and experience insightful answers. Unlock the power of AI-driven communication – every message is a chance for a smarter exchange. Send text or image!\n Experience the power of AI-driven communication through insightful answers, text, or images. \n👾 Features \n Answer any question, even challenging or strange ones. \n ⏩ Generate creative text formats like poems, scripts, code, emails, and more. \n ⏩ Translate languages effortlessly. \n ⏩ Simplify complex concepts with clear explanations. \n ⏩  Perform math and calculations. \n ⏩ Assist with research and creative content generation. \n ⏩ Provide fun with word games, quizzes, and much more!\n ⏩ Send a text or image and unlock smarter exchanges. Don’t forget to join the channels below for more: And most importantly join the channels:  \n [Channel 1](https://t.me/+gOUK4JnBcCtkYWQ8) \n [Channel 2](https://t.me/telegemin). \n ወደ ጀሚኒ 1.5 ፕሮ አርቴፊሻል ኢንተለጀንስ እንኳን ደህና መጡ! ድንቅ 3 ከፍተኛ ተጠቃሚዎች ያሉት ጎግል AI ፣ እኔ እዚህ ስፍር ቁጥር በሌላቸው መንገዶች ልረዳችሁ የምችል የአርቴፊሻል ኢንተለጀንስ ቻት ቦት ነኝ። በአስተዋይ መልሶች፣ በጽሑፍ ወይም በምስሎች የአርቴፊሻል ኢንተለጀንስ የተጎላበተ የግንኙነት ይለማመዱ። \n \n ⏩ ማንኛውንም ጥያቄ፣ ፈታኝ ወይም እንግዳ የሆኑትንም እንኳ መልስ ያግኙ። \n ⏩ እንደ ግጥም፣ ስክሪፕት፣ ኮድ፣ ኢሜይሎች እና ሌሎችም ያሉ የፈጠራ ጽሑፎችን ይፍጠሩ። \n ⏩ ቋንቋዎችን በቀላሉ መተርጎም። \n ⏩ ውስብስብ ጽንሰ-ሐሳቦችን በግልጽ ማብራራት። \n ⏩ የሂሳብ ስሌቶችን መስራት። \n ⏩ በምርምር እና በፈጠራ ይዘት ያላቸው ፅሁፎች። \n ⏩ በቃላት ጨዋታዎች፣ ጥያቄዎች እና በብዙ ተጨማሪ ነገሮች ይዝናኑ!\n ⏩ ጽሑፍ ወይም ምስል ይላኩ እና መልስ ያግኙ። ለተጨማሪ መረጃ ከታች ባሉት ቻናሎች መቀላቀልዎን አይርሱ።"
+    command_list = "/new - Start new chat\n/explain [concept] [textbook_id] - Explain a concept from textbook\n/note [topic] [textbook_id] - Prepare short note on a topic"
+    result = f"{help_text}\n\n{command_list}"
+    return result
+
+def list_models():
+    for m in genai.list_models():
+        send_log(str(m))
+        if 'generateContent' in m.supported_generation_methods:
+            send_log(str(m.name))
+    return ""
+
+def get_allowed_users():
+    send_log(f"```json\n{ALLOWED_USERS}```")
+    return ""
+
+
+def get_API_key():
+    send_log(f"```json\n{GOOGLE_API_KEY}```")
+    return ""
+
+def speed_test(id):
+    send_message(id, "开始测速")
+    sleep(5)
+    return "测试完成，您的5G速度为：\n**114514B/s**"
+
+def send_message_test(id, command):
+    if not is_admin(id):
+        return admin_auch_info
+    a = command.find(" ")
+    b = command.find(" ", a + 1)
+    if a == -1 or b == -1:
+        return "Command format error"
+    to_id = command[a+1:b]
+    text = command[b+1:]
+    try:
+        send_message(to_id, text)
+    except Exception as e:
+        send_log(f"err:\n{e}")
+        return
+    send_log("success")
+    return ""
+
+def explain_concept(from_id, concept, textbook_id):
+    """Explains a concept, using textbook context with page numbers if available, otherwise general AI."""
+    concept_pages = search_concept_pages(textbook_id, concept) # Use helper function to find relevant pages
+    context_text = ""
+    page_refs = ""
+
+    if concept_pages: # If concept found in textbook
+        context_text = get_text_from_pages(textbook_id, concept_pages) # Get text from relevant pages
+        page_refs = f"(Pages: {', '.join(map(str, concept_pages))})" # Create page number reference string
+        prompt = f"Explain the concept of '{concept}' based on the following excerpt from pages {page_refs} of the Grade 9 textbook '{textbook_id}':\n\n---\n{context_text}\n---\n\nProvide a detail and comprehensive explanation suitable for a Grade 9 student." # More detailed prompt
+    else: # If not found, use general prompt
+        prompt = f"Explain the concept of '{concept}' in detail and comprehensively, suitable for a Grade 9 student." # More detailed general prompt
+        page_refs = "(Textbook page not found)"
+
+    response = generate_content(prompt)
+    return f"{response}\n\n{page_refs}" # Append page reference to response
+
+
+def prepare_short_note(from_id, topic, textbook_id):
+    """Prepares a short note on a topic, using textbook context with page numbers if available, otherwise general AI."""
+    topic_pages = search_concept_pages(textbook_id, topic) # Use helper function to find relevant pages
+    context_text = ""
+    page_refs = ""
+
+    if topic_pages: # If topic found in textbook
+        context_text = get_text_from_pages(textbook_id, topic_pages) # Get text from relevant pages
+        page_refs = f"(Pages: {', '.join(map(str, topic_pages))})" # Create page number reference string
+        prompt = f"Prepare a short, concise but comprehensive study note on the topic of '{topic}' based on the Grade 9 textbook '{textbook_id}', drawing from pages {page_refs}. Focus on key points and make it easy to understand for a Grade 9 student. Limit the note to around 5-6 key points if possible.\n\n---\n{context_text}\n---" # More detailed prompt
+    else: # If not found, use general prompt
+        prompt = f"Prepare a short, concise but comprehensive study note on the topic of '{topic}'. Focus on key points and make it easy to understand for a Grade 9 student. Limit the note to around 5-6 key points if possible." # More detailed general prompt
+        page_refs = "(Textbook page not found)"
+
+    response = generate_content(prompt)
+    return f"{response}\n\n{page_refs}" # Append page reference to response
+
+def answer_exercise(from_id, exercise_query, textbook_id):
+    """Answers an exercise from a textbook."""
+    textbook_content = get_textbook_content(textbook_id)
+    if not textbook_content:
+        return f"Textbook with ID '{textbook_id}' not found."
+
+    import re
+    exercise_regex = re.compile(rf"(Review Questions)?\s*(Part [IVX]+:)?\s*(Question|exercise)\s*([\d.]+)", re.IGNORECASE)
+
+    best_match_start = -1
+    best_match_end = -1
+    context_text = "Exercise not found."
+
+    query_parts = exercise_query.lower().split()
+
+    print(f"--- Searching for exercise: '{exercise_query}' ---") # Log the query
+
+    found_matches = [] # List to store all matches for logging
+
+    for match in exercise_regex.finditer(textbook_content.lower()):
+        full_match = match.group(0)
+        part = match.group(2)
+        question_type = match.group(3)
+        question_number = match.group(4)
+
+        match_score = 0
+        for query_part in query_parts:
+            if query_part in full_match.lower():
+                match_score += 1
+
+        found_matches.append({ # Store match details for logging
+            "full_match": full_match,
+            "part": part,
+            "question_type": question_type,
+            "question_number": question_number,
+            "score": match_score
+        })
+
+        if best_match_start == -1 or match_score > best_match_score:
+            best_match_start = match.start()
+            best_match_end = match.end()
+            best_match_score = match_score
+
+    # [!HIGHLIGHT!] Log all found matches (even if no "best match" is good enough)
+    print("--- All Regex Matches Found (with scores): ---")
+    for match_info in found_matches:
+        print(f"  Match: '{match_info['full_match']}', Score: {match_info['score']}, Part: '{match_info['part']}', Type: '{match_info['question_type']}', Number: '{match_info['question_number']}'")
+
+    if best_match_start != -1 and best_match_score > 0 : # Added score check to ensure at least some word matched
+        context_start = max(0, best_match_start - 500)
+        context_end = min(len(textbook_content), best_match_end + 1000)
+        context_text = textbook_content[context_start:context_end]
+        print(f"--- Best Match Found: '{context_text[:100]}...' (score: {best_match_score}) ---") # Log best match
+    else:
+        print("--- No Suitable Exercise Match Found ---") # Log if no good match
+        return f"Exercise '{exercise_query}' not found in textbook '{textbook_id}'."
+
+    prompt = f"Based on the following excerpt from a Grade 9 economics textbook, answer the review question:\n\n---\n{context_text}\n---\n\nSpecifically, answer exercise/question: '{exercise_query}'."
+    response = generate_content(prompt)
+    return response
+
+def excute_command(from_id, command):
+    if command == "start" or command == "help":
+        return help()
+    elif command == "get_my_info":
+        result = f"your telegram id is: `{from_id}`"
+        return result
+    elif command == "5g_test":
+        return speed_test(from_id)
+    elif command.startswith("send_message"):
+        return send_message_test(from_id, command)
+    elif command in ["get_allowed_users", "get_api_key", "list_models"]:
+        if not is_admin(from_id):
+            return admin_auch_info
+        if IS_DEBUG_MODE == "0":
+            return debug_mode_info
+        if command == "get_allowed_users":
+            return get_allowed_users()
+        elif command == "get_api_key":
+            return get_API_key()
+        elif command == "list_models":
+            return list_models()
+
+    # [!HIGHLIGHT!] Modified command handling for explain, note, answer
+    elif command.startswith("explain"):
+        parts = command.split(" ", 1) # Split only once at the first space
+        if len(parts) == 2: # Now we expect 2 parts: command and the rest
+            command_name, concept_and_textbook_id = parts # The rest is concept + textbook_id
+            concept_parts = concept_and_textbook_id.split() # Split the rest by spaces again
+            if concept_parts: # Check if there's anything after 'explain'
+                textbook_id = concept_parts[-1] # Assume textbook_id is the last word
+                concept = " ".join(concept_parts[:-1]) # Join the rest as concept phrase
+                return explain_concept(from_id, concept, textbook_id)
+            else:
+                return "Invalid command format. Use: /explain [concept] [textbook_id]"
+        else:
+            return "Invalid command format. Use: /explain [concept] [textbook_id]"
+
+    elif command.startswith("note"):
+        parts = command.split(" ", 1) # Split only once at the first space
+        if len(parts) == 2:
+            command_name, topic_and_textbook_id = parts
+            topic_parts = topic_and_textbook_id.split()
+            if topic_parts:
+                textbook_id = topic_parts[-1]
+                topic = " ".join(topic_parts[:-1])
+                return prepare_short_note(from_id, topic, textbook_id)
+            else:
+                return "Invalid command format. Use: /note [topic] [textbook_id]"
+        else:
+            return "Invalid command format. Use: /note [topic] [textbook_id]"
+    else:
+        result = "Invalid command, use /help for help"
+        return result
+        
+
+    elif command.startswith("answer"):
+        parts = command.split(" ", 1) # Split only once at the first space
+        if len(parts) == 2:
+            command_name, exercise_and_textbook_id = parts
+            exercise_parts = exercise_and_textbook_id.split()
+            if exercise_parts and len(exercise_parts) >= 2: # Expect at least exercise_number and textbook_id
+                textbook_id = exercise_parts[-1]
+                # [!HIGHLIGHT!] Combine exercise_number and chapter_section into exercise_query
+                exercise_query_parts = exercise_parts[:-1] # Everything before textbook_id is exercise query
+                exercise_query = " ".join(exercise_query_parts) # Join as exercise_query phrase
+
+                # [!CORRECTED CALL!] Pass only 3 arguments: from_id, exercise_query, textbook_id
+                return answer_exercise(from_id, exercise_query, textbook_id)
+            else:
+                return "Invalid command format. Use: /answer [exercise_query] [textbook_id]"
+        else:
+            return "Invalid command format. Use: /answer [exercise_query] [textbook_id]"'''
+
+  # api/command.py
+from time import sleep
+import time # Import time module for sleep
+import google.generativeai as genai
+
+from .auth import is_admin
+from .config import ALLOWED_USERS,IS_DEBUG_MODE,GOOGLE_API_KEY
+from .printLog import send_log
+from .telegram import send_message
+from .textbook_processor import get_textbook_content, search_concept_pages, get_text_from_pages
+from .gemini import generate_content, generate_content_stream # Add generate_content_stream to import
+
+admin_auch_info = "You are not the administrator or your administrator ID is set incorrectly!!!"
+debug_mode_info = "Debug mode is not enabled!"
+
+def help():
+    help_text = "Welcome to Gemini 2.0 flash AI! Interact through text or images and experience insightful answers. Unlock the power of AI-driven communication – every message is a chance for a smarter exchange. Send text or image!\n Experience the power of AI-driven communication through insightful answers, text, or images. \n👾 Features \n Answer any question, even challenging or strange ones. \n ⏩ Generate creative text formats like poems, scripts, code, emails, and more. \n ⏩ Translate languages effortlessly. \n ⏩ Simplify complex concepts with clear explanations. \n ⏩  Perform math and calculations. \n ⏩ Assist with research and creative content generation. \n ⏩ Provide fun with word games, quizzes, and much more!\n ⏩ Send a text or image and unlock smarter exchanges. Don’t forget to join the channels below for more: And most importantly join the channels:  \n [Channel 1](https://t.me/+gOUK4JnBcCtkYWQ8) \n [Channel 2](https://t.me/telegemin). \n ወደ ጀሚኒ 1.5 ፕሮ አርቴፊሻል ኢንተለጀንስ እንኳን ደህና መጡ! ድንቅ 3 ከፍተኛ ተጠቃሚዎች ያሉት ጎግል AI ፣ እኔ እዚህ ስፍር ቁጥር በሌላቸው መንገዶች ልረዳችሁ የምችል የአርቴፊሻል ኢንተለጀንስ ቻት ቦት ነኝ። በአስተዋይ መልሶች፣ በጽሑፍ ወይም በምስሎች የአርቴፊሻል ኢንተለጀንስ የተጎላበተ የግንኙነት ይለማመዱ። \n \n ⏩ ማንኛውንም ጥያቄ፣ ፈታኝ ወይም እንግዳ የሆኑትንም እንኳ መልስ ያግኙ። \n ⏩ እንደ ግጥም፣ ስክሪፕት፣ ኮድ፣ ኢሜይሎች እና ሌሎችም ያሉ የፈጠራ ጽሑፎችን ይፍጠሩ። \n ⏩ ቋንቋዎችን በቀላሉ መተርጎም። \n ⏩ ውስብስብ ጽንሰ-ሐሳቦችን በግልጽ ማብራራት። \n ⏩ የሂሳብ ስሌቶችን መስራት። \n ⏩ በምርምር እና በፈጠራ ይዘት ያላቸው ፅሁፎች። \n ⏩ በቃላት ጨዋታዎች፣ ጥያቄዎች እና በብዙ ተጨማሪ ነገሮች ይዝናኑ!\n ⏩ ጽሑፍ ወይም ምስል ይላኩ እና መልስ ያግኙ። ለተጨማሪ መረጃ ከታች ባሉት ቻናሎች መቀላቀልዎን አይርሱ።"
+    command_list = "/new - Start new chat\n/explain [concept] [textbook_id] - Explain a concept from textbook\n/note [topic] [textbook_id] - Prepare short note on a topic\n/create_questions [concept] [textbook_id] - Generate review questions "
+    result = f"{help_text}\n\n{command_list}"
+    return result
+
+def list_models():
+    for m in genai.list_models():
+        send_log(str(m))
+        if 'generateContent' in m.supported_generation_methods:
+            send_log(str(m.name))
+    return ""
+
+def get_allowed_users():
+    send_log(f"```json\n{ALLOWED_USERS}```")
+    return ""
+
+
+def get_API_key():
+    send_log(f"```json\n{GOOGLE_API_KEY}```")
+    return ""
+
+def speed_test(id):
+    send_message(id, "开始测速")
+    sleep(5)
+    return "测试完成，您的5G速度为：\n**114514B/s**"
+
+def send_message_test(id, command):
+    if not is_admin(id):
+        return admin_auch_info
+    a = command.find(" ")
+    b = command.find(" ", a + 1)
+    if a == -1 or b == -1:
+        return "Command format error"
+    to_id = command[a+1:b]
+    text = command[b+1:]
+    try:
+        send_message(to_id, text)
+    except Exception as e:
+        send_log(f"err:\n{e}")
+        return
+    send_log("success")
+    return ""
+
+'''def explain_concept(from_id, concept, textbook_id):
+    """Explains a concept, using textbook context with page numbers if available, otherwise general AI."""
+    concept_pages = search_concept_pages(textbook_id, concept) # Use helper function to find relevant pages
+    context_text = ""
+    page_refs = ""
+
+    if concept_pages: # If concept found in textbook
+        context_text = get_text_from_pages(textbook_id, concept_pages) # Get text from relevant pages
+        page_refs = f"(Pages: {', '.join(map(str, concept_pages))})" # Create page number reference string
+        prompt = f"Explain the concept of '{concept}' based on the following excerpt from pages {page_refs} of the Grade 9 textbook '{textbook_id}':\n\n---\n{context_text}\n---\n\nProvide a detailed and comprehensive explanation suitable for a Grade 9 student." # More detailed prompt
+    else: # If not found, use general prompt
+        prompt = f"Explain the concept of '{concept}' in detail and comprehensively, suitable for a Grade 9 student." # More detailed general prompt
+        page_refs = "(Textbook page not found)"
+
+    response = generate_content(prompt)
+    return f"{response}\n\n{page_refs}" # Append page reference to response
+def explain_concept(from_id, concept, textbook_id):
+    """Explains a concept, using textbook context with page numbers and streaming response."""
+    concept_pages = search_concept_pages(textbook_id, concept)
+    context_text = ""
+    page_refs = ""
+
+    if concept_pages:
+        context_text = get_text_from_pages(textbook_id, concept_pages)
+        page_refs = f"(Pages: {', '.join(map(str, concept_pages))})"
+        prompt = f"Explain the concept of '{concept}' based on the following excerpt from pages {page_refs} of the Grade 9 textbook '{textbook_id}':\n\n---\n{context_text}\n---\n\nProvide a detailed and comprehensive explanation suitable for a Grade 9 student."
+    else:
+        prompt = f"Explain the concept of '{concept}' in detail and comprehensively, suitable for a Grade 9 student."
+        page_refs = "(Textbook page not found)"
+
+    # [!HIGHLIGHT!] Use generate_content_stream instead of generate_content
+    response_stream = generate_content_stream(prompt) # Get a stream of response chunks
+
+    full_response = "" # Accumulate full response text for page refs and return
+    for chunk_text in response_stream: # Iterate through response chunks
+        if chunk_text: # Check if chunk is not empty (error message might be empty)
+            send_message(from_id, chunk_text) # Send each chunk as a Telegram message
+            full_response += chunk_text # Accumulate for final response
+
+    return f"{full_response}\n\n{page_refs}" # Append page reference to the accumulated response'''
+
+
+
+def explain_concept(from_id, concept, textbook_id):
+    """Explains concept with streaming, using time-based chunk buffering and robust error handling."""
+    concept_pages = search_concept_pages(textbook_id, concept)
+    context_text = ""
+    page_refs = ""
+    prompt = ""
+    full_response = ""  # Initialize full_response
+
+    if concept_pages:
+        context_text = get_text_from_pages(textbook_id, concept_pages)
+        page_refs = f"(Pages: {', '.join(map(str, concept_pages))})"
+        prompt = f"Explain the concept of '{concept}' based on the following excerpt from pages {page_refs} of the Grade 9 textbook '{textbook_id}':\n\n---\n{context_text}\n---\n\nProvide a detailed and comprehensive explanation suitable for a Grade 9 student."
+    else:
+        prompt = f"Explain the concept of '{concept}' in detail and comprehensively, suitable for a Grade 9 student."
+        page_refs = "(Textbook page not found)"
+
+    response_stream = generate_content_stream(prompt)
+
+    buffered_message = ""
+    last_chunk_time = time.time()
+
+    try:
+        for chunk_text in response_stream:
+            if chunk_text:
+                buffered_message += chunk_text
+                full_response += chunk_text # [!HIGHLIGHT!] Accumulate full_response here!
+
+            current_time = time.time()
+            time_since_last_chunk = current_time - last_chunk_time
+
+            if len(buffered_message) > 4000 or time_since_last_chunk >= 5:
+                send_message(from_id, buffered_message)
+                buffered_message = ""
+                last_chunk_time = current_time
+
+    except Exception as e:
+        error_message = f"Error during streaming response from Gemini: {e}"
+        send_message(from_id, error_message)
+        return error_message
+
+    # Send any remaining buffered text
+    if buffered_message:
+        send_message(from_id, buffered_message)
+
+    return f"{full_response}\n\n{page_refs}" # Append page reference to the accumulated response
+
+def create_questions(from_id, concept, textbook_id):
+    """Generates questions based on a concept from a textbook, using streaming."""
+    concept_pages = search_concept_pages(textbook_id, concept)
+    context_text = ""
+    page_refs = ""
+    prompt = ""  # Initialize prompt
+
+    if concept_pages: # If concept found in textbook
+        context_text = get_text_from_pages(textbook_id, concept_pages)
+        page_refs = f"(Pages: {', '.join(map(str, concept_pages))})"
+        prompt = f"Generate 20-25 review questions about the concept of '{concept}' based on the following excerpt from pages {page_refs} of the Grade 9 textbook '{textbook_id}':\n\n---\n{context_text}\n---\n\nThese questions should be suitable for Grade 9 students to test their understanding of the concept. Include a variety of question types (10 multiple choice, 5 true/false, 5 short answer) if appropriate for the concept. And Include answer after each question" # Modified prompt to generate questions
+    else: # If not found, use general prompt (less textbook-specific questions)
+        prompt = f"Generate 20-25 review questions about the concept of '{concept}'. These questions should be suitable for Grade 9 students and cover the key aspects of this concept. Include a variety of question types (e.g., multiple choice, true/false, short answer) if appropriate. And Include answer after each question" # Modified prompt for general questions
+        page_refs = "(Textbook page not found)"
+
+    response_stream = generate_content_stream(prompt)
+
+    buffered_message = ""
+    last_chunk_time = time.time()
+    full_response = ""  # Initialize full_response
+
+    try:
+        for chunk_text in response_stream:
+            if chunk_text:
+                buffered_message += chunk_text
+                full_response += chunk_text
+
+            current_time = time.time()
+            time_since_last_chunk = current_time - last_chunk_time
+
+            if len(buffered_message) > 4000 or time_since_last_chunk >= 4:
+                send_message(from_id, buffered_message)
+                buffered_message = ""
+                last_chunk_time = current_time
+                time.sleep(0.1)
+
+    except Exception as e:
+        error_message = f"Error during streaming response for create_questions: {e}" # Updated error message
+        send_message(from_id, error_message)
+        return error_message
+
+    # Send any remaining buffered text
+    if buffered_message:
+        send_message(from_id, buffered_message)
+
+    return f"{full_response}\n\n{page_refs}" # Append page reference
+
+def prepare_short_note(from_id, topic, textbook_id):
+    """Prepares a short note on a topic, using textbook context with page numbers if available, otherwise general AI."""
+    topic_pages = search_concept_pages(textbook_id, topic) # Use helper function to find relevant pages
+    context_text = ""
+    page_refs = ""
+
+    if topic_pages: # If topic found in textbook
+        context_text = get_text_from_pages(textbook_id, topic_pages) # Get text from relevant pages
+        page_refs = f"(Pages: {', '.join(map(str, topic_pages))})" # Create page number reference string
+        prompt = f"Prepare a short, concise but comprehensive study note on the topic of '{topic}' based on the Grade 9 textbook '{textbook_id}', drawing from pages {page_refs}. Focus on key points and make it easy to understand for a Grade 9 student. Limit the note to around 5-6 key points if possible.\n\n---\n{context_text}\n---" # More detailed prompt
+    else: # If not found, use general prompt
+        prompt = f"Prepare a short, concise but comprehensive study note on the topic of '{topic}'. Focus on key points and make it easy to understand for a Grade 9 student. Limit the note to around 6 key points if possible." # More detailed general prompt
+        page_refs = "(Textbook page not found)"
+
+    response = generate_content(prompt)
+    return f"{response}\n\n{page_refs}" # Append page reference to response
+
+def answer_exercise(from_id, exercise_query, textbook_id):
+    """Answers an exercise from a textbook."""
+    textbook_content = get_textbook_content(textbook_id)
+    if not textbook_content:
+        return f"Textbook with ID '{textbook_id}' not found."
+
+    import re
+    exercise_regex = re.compile(rf"(Review Questions)?\s*(Part [IVX]+:)?\s*(Question|exercise)\s*([\d.]+)", re.IGNORECASE)
+
+    best_match_start = -1
+    best_match_end = -1
+    context_text = "Exercise not found."
+
+    query_parts = exercise_query.lower().split()
+
+    print(f"--- Searching for exercise: '{exercise_query}' ---") # Log the query
+
+    found_matches = [] # List to store all matches for logging
+
+    for match in exercise_regex.finditer(textbook_content.lower()):
+        full_match = match.group(0)
+        part = match.group(2)
+        question_type = match.group(3)
+        question_number = match.group(4)
+
+        match_score = 0
+        for query_part in query_parts:
+            if query_part in full_match.lower():
+                match_score += 1
+
+        found_matches.append({ # Store match details for logging
+            "full_match": full_match,
+            "part": part,
+            "question_type": question_type,
+            "question_number": question_number,
+            "score": match_score
+        })
+
+        if best_match_start == -1 or match_score > best_match_score:
+            best_match_start = match.start()
+            best_match_end = match.end()
+            best_match_score = match_score
+
+    # [!HIGHLIGHT!] Log all found matches (even if no "best match" is good enough)
+    print("--- All Regex Matches Found (with scores): ---")
+    for match_info in found_matches:
+        print(f"  Match: '{match_info['full_match']}', Score: {match_info['score']}, Part: '{match_info['part']}', Type: '{match_info['question_type']}', Number: '{match_info['question_number']}'")
+
+    if best_match_start != -1 and best_match_score > 0 : # Added score check to ensure at least some word matched
+        context_start = max(0, best_match_start - 500)
+        context_end = min(len(textbook_content), best_match_end + 1000)
+        context_text = textbook_content[context_start:context_end]
+        print(f"--- Best Match Found: '{context_text[:100]}...' (score: {best_match_score}) ---") # Log best match
+    else:
+        print("--- No Suitable Exercise Match Found ---") # Log if no good match
+        return f"Exercise '{exercise_query}' not found in textbook '{textbook_id}'."
+
+    prompt = f"Based on the following excerpt from a Grade 9 economics textbook, answer the review question:\n\n---\n{context_text}\n---\n\nSpecifically, answer exercise/question: '{exercise_query}'."
+    response = generate_content(prompt)
+    return response
+
+def excute_command(from_id, command):
+    if command == "start" or command == "help":
+        return help()
+    elif command == "get_my_info":
+        result = f"your telegram id is: `{from_id}`"
+        return result
+    elif command == "5g_test":
+        return speed_test(from_id)
+    elif command.startswith("send_message"):
+        return send_message_test(from_id, command)
+    elif command in ["get_allowed_users", "get_api_key", "list_models"]:
+        if not is_admin(from_id):
+            return admin_auch_info
+        if IS_DEBUG_MODE == "0":
+            return debug_mode_info
+        if command == "get_allowed_users":
+            return get_allowed_users()
+        elif command == "get_api_key":
+            return get_API_key()
+        elif command == "list_models":
+            return list_models()
+
+    # [!HIGHLIGHT!] Modified command handling for explain, note, answer
+    elif command.startswith("explain"):
+        parts = command.split(" ", 1) # Split only once at the first space
+        if len(parts) == 2: # Now we expect 2 parts: command and the rest
+            command_name, concept_and_textbook_id = parts # The rest is concept + textbook_id
+            concept_parts = concept_and_textbook_id.split() # Split the rest by spaces again
+            if concept_parts: # Check if there's anything after 'explain'
+                textbook_id = concept_parts[-1] # Assume textbook_id is the last word
+                concept = " ".join(concept_parts[:-1]) # Join the rest as concept phrase
+                return explain_concept(from_id, concept, textbook_id)
+            else:
+                return "Invalid command format. Use: /explain [concept] [textbook_id]"
+        else:
+            return "Invalid command format. Use: /explain [concept] [textbook_id]"
+
+    elif command.startswith("note"):
+        parts = command.split(" ", 1) # Split only once at the first space
+        if len(parts) == 2:
+            command_name, topic_and_textbook_id = parts
+            topic_parts = topic_and_textbook_id.split()
+            if topic_parts:
+                textbook_id = topic_parts[-1]
+                topic = " ".join(topic_parts[:-1])
+                return prepare_short_note(from_id, topic, textbook_id)
+            else:
+                return "Invalid command format. Use: /note [topic] [textbook_id]"
+        else:
+            return "Invalid command format. Use: /note [topic] [textbook_id]"
+     
+    elif command.startswith("create_questions"): # /create_questions concept textbook_id
+        parts = command.split(" ", 1) # Split only once at the first space
+        if len(parts) == 2: # Now we expect 2 parts: command and the rest
+            command_name, concept_and_textbook_id = parts # The rest is concept + textbook_id
+            concept_parts = concept_and_textbook_id.split() # Split the rest by spaces again
+            if concept_parts: # Check if there's anything after 'explain'
+                textbook_id = concept_parts[-1] # Assume textbook_id is the last word
+                concept = " ".join(concept_parts[:-1]) # Join the rest as concept phrase
+                return create_questions(from_id, concept, textbook_id) # [!CORRECTED!] - Call create_questions function
+            else:
+                return "Invalid command format. Use: /create_questions [concept] [textbook_id]"
+        else:
+            return "Invalid command format. Use: /create_questions [concept] [textbook_id]"
+    else:
+        result = "Invalid command, use /help for help"
+        return result 
