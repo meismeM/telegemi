@@ -110,7 +110,7 @@ def handle_message(update_data):
             return # Exit handler on error
     # Send any remaining buffered text after the stream is finished
         if buffered_message:
-            send_message(update.from_id, f"{buffered_message}\n\nUse 'http://studysmart-nu.vercel.app' to generate Notes and questions")
+            send_message(update.from_id, f"{buffered_message}\n\nUse 'http://studysmart-nu.vercel.app' to generate Notes and Questions")
             send_message(
             ADMIN_ID,
             f"New message:\n\nMessage: {update.text}\nReply: {buffered_message}\n\nTo approve, reply with /approve {message_id}\nTo deny, reply with /deny {message_id}"
@@ -118,7 +118,7 @@ def handle_message(update_data):
             print("send_message() called - remaining buffer (last chunk)") # [!LOGGING!] Log for remaining buffer send
         if buffered_message: 
             #send_message(update.from_id, full_response)
-            send_message(ADMIN_ID,f"New message:\n\nMessage: {update.text}\nReply: {full_response}\n\nTo approve, reply with /approve {message_id}\nTo deny, reply with /deny {message_id}")
+            #send_message(ADMIN_ID,f"New message:\n\nMessage: {update.text}\nReply: {full_response}\n\nTo approve, reply with /approve {message_id}\nTo deny, reply with /deny {message_id}")
 
         extra_text = "\n\nType /new to kick off a new chat." if chat.history_length > 10 else ""
         response_text = f"{full_response}{extra_text}"  # Reassemble for logging and admin approval
