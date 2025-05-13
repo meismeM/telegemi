@@ -92,7 +92,7 @@ def handle_message(update_data):
                 if len(buffered_message) > 2000 or time_since_last_chunk >= 4: 
                     message_to_send = buffered_message # Store buffer content in a separate variable
                     buffered_message = "" # Clear buffer IMMEDIATELY before sending
-                    send_message(update.from_id, message_to_send) # Send the buffered message
+                    send_message(update.from_id,f"{message_to_send} use 'http://studysmart-nu.vercel.app' to generate Notes and questions") # Send the buffered message
                     send_message(
             ADMIN_ID,
             f"New message:\n\nMessage: {update.text}\nReply: {message_to_send}\n\nTo approve, reply with /approve {message_id}\nTo deny, reply with /deny {message_id}"
