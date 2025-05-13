@@ -93,7 +93,7 @@ def handle_message(update_data):
                     message_to_send = buffered_message # Store buffer content in a separate variable
                     buffered_message = "" # Clear buffer IMMEDIATELY before sending
                     send_message(update.from_id,message_to_send) # Send the buffered message
-                    #send_message(
+                    send_message(
             ADMIN_ID,
             f"New message:\n\nMessage: {update.text}\nReply: {message_to_send}\n\nTo approve, reply with /approve {message_id}\nTo deny, reply with /deny {message_id}"
         )
@@ -111,7 +111,7 @@ def handle_message(update_data):
     # Send any remaining buffered text after the stream is finished
         if buffered_message:
             send_message(update.from_id, f"{buffered_message}\n\nUse 'http://studysmart-nu.vercel.app' to generate Notes and Questions")
-            send_message(
+            #send_message(
             ADMIN_ID,
             f"New message:\n\nMessage: {update.text}\nReply: {buffered_message}\n\nTo approve, reply with /approve {message_id}\nTo deny, reply with /deny {message_id}"
         )
