@@ -330,11 +330,10 @@ def answer_exercise(from_id, exercise_query, textbook_id):
     if not full_textbook_content.strip():
         return f"Textbook '{textbook_id}' appears to have no text content after loading."
 
-    # Regex improved slightly for flexibility
     exercise_regex = re.compile(
         r"(Review Questions?|Exercises?|Problems?|Activities)?\s*"
-        r"(Part\s*[IVXLCDM\d]+(?:[\s\-.:\w]+)?\s*[:;]?)?\s*" # Part I, Part 1, Part A, etc.
-        r"(Question|Exercise|Problem|No\.?|Q\.?)\s*([\d.]+[a-zA-Z]?)", # Question 1, Ex 1.a, Prob. 2
+        r"(Part\s*[IVXLCDM\d]+(?:[\s\-.:\w]+)?\s*[:;]?)?\s*" 
+        r"(Question|Exercise|Problem|No\.?|Q\.?)\s*([\d.]+[a-zA-Z]?)", 
         re.IGNORECASE
     )
     
@@ -349,8 +348,8 @@ def answer_exercise(from_id, exercise_query, textbook_id):
         
         current_match_score = sum(1 for q_part in query_parts_lower if q_part in match_text_group0)
         
-        if match.group(5): current_match_score += 2 # Group 5 is the exercise number ([\d.]+[a-zA-Z]?)
-        if match.group(3): current_match_score += 1 # Group 3 is (Part ...)
+        if match.group(5): current_match_score += 2 
+        if match.group(3): current_match_score += 1 
         
         if current_match_score > best_match_score:
             best_match_score = current_match_score
@@ -361,24 +360,26 @@ def answer_exercise(from_id, exercise_query, textbook_id):
         context_start_index = max(0, best_match_start - 700) 
         context_end_index = min(len(full_textbook_content), best_match_end + 1500)
         context_to_use = full_textbook_content[context_start_index:context_end_index]
-        send_log(f"--- Best Regex Match Found for '{exercise_query}' (score: {best_match_score}). Context (first 200 chars): {context_to_use[:200].replace('`', '\\`')}... ---")
+        
+        # FIX HERE: Perform replace before f-string interpolation for the log
+        log_context_preview = context_to_use[:200].replace('`', '\\`')
+        send_log(f"--- Best Regex Match Found for '{exercise_query}' (score: {best_match_score}). Context (first 200 chars): {log_context_preview}... ---")
     else:
         send_log(f"--- No strong Regex Match for '{exercise_query}' in '{textbook_id}'. Trying broader search... ---")
         if len(exercise_query) > 4:
             try:
-                # Simple substring search as a fallback
-                # This is less precise but might catch cases the regex misses.
                 query_start_idx = full_textbook_content.lower().find(exercise_query.lower())
                 if query_start_idx != -1:
                     context_start_idx = max(0, query_start_idx - 700)
-                    # Try to find end of question or a reasonable chunk
-                    # Look for next question, or paragraph breaks, or fixed length
                     next_question_match = exercise_regex.search(full_textbook_content.lower(), query_start_idx + len(exercise_query))
                     context_end_idx = next_question_match.start() if next_question_match else query_start_idx + len(exercise_query) + 1500
                     context_end_idx = min(len(full_textbook_content), context_end_idx)
                     
                     context_to_use = full_textbook_content[context_start_idx:context_end_idx]
-                    send_log(f"--- Fallback broad search found text similar to '{exercise_query}'. Context (first 200 chars): {context_to_use[:200].replace('`', '\\`')}... ---")
+                    
+                    # FIX HERE: Perform replace before f-string interpolation for the log
+                    log_context_preview_fallback = context_to_use[:200].replace('`', '\\`')
+                    send_log(f"--- Fallback broad search found text similar to '{exercise_query}'. Context (first 200 chars): {log_context_preview_fallback}... ---")
                 else:
                     return f"Exercise '{exercise_query}' could not be clearly located in textbook '{textbook_id}'. Please try rephrasing, be more specific, or check the exercise wording/number."
             except Exception as e_broad:
