@@ -17,7 +17,7 @@ else:
     # Log this critical issue, as the bot won't function
     log_message = "CRITICAL WARNING: GOOGLE_API_KEY is not configured properly or is empty in config.py. Gemini models cannot be initialized."
     print(log_message)
-    send_log(log_message) # Also send to Telegram admin log if possible
+    #send_log(log_message) # Also send to Telegram admin log if possible
 
 
 # Use model names as originally specified by the user
@@ -41,12 +41,12 @@ if CONFIGURED_API_KEY:
             generation_config=generation_config,
             safety_settings=safety_settings)
         print(f"Gemini models ('{MODEL_NAME_DEFAULT}') initialized successfully.")
-        send_log(f"Gemini models ('{MODEL_NAME_DEFAULT}') initialized successfully.")
+        #send_log(f"Gemini models ('{MODEL_NAME_DEFAULT}') initialized successfully.")
 
     except Exception as e:
         error_log_msg = f"CRITICAL ERROR initializing Gemini models with name '{MODEL_NAME_DEFAULT}': {e}. Check API key and model availability."
         print(error_log_msg)
-        send_log(error_log_msg)
+        #send_log(error_log_msg)
         # Models will remain None
 else:
     # This case is already logged above. Models remain None.
