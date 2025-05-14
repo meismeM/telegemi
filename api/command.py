@@ -1,11 +1,21 @@
-# api/handle.py
-from .auth import is_authorized, is_admin
-from .command import excute_command, STREAMING_OUTPUT_SENT # Import marker
-from .context import ChatManager, ImageChatManger
-from .telegram import Update, send_message, forward_message, copy_message, send_imageMessage
-from .printLog import send_log, send_image_log
-from .config import CHANNEL_ID, ADMIN_ID
-import time
+# api/command.py
+from time import sleep
+import time # Import time module for sleep
+import google.generativeai as genai
+import re # Import re for answer_exercise
+
+# from .command import excute_command, STREAMING_OUTPUT_SENT # <<< REMOVE THIS LINE
+
+from .auth import is_admin
+from .config import ALLOWED_USERS,IS_DEBUG_MODE,GOOGLE_API_KEY
+from .printLog import send_log
+from .telegram import send_message
+from .textbook_processor import get_textbook_content, search_concept_pages, get_text_from_pages
+from .gemini import generate_content, generate_content_stream
+
+admin_auch_info = "You are not the administrator or your administrator ID is set incorrectly!!!"
+debug_mode_info = "Debug mode is not enabled!"
+STREAMING_OUTPUT_SENT = "STREAMING_OUTPUT_SENT" # Marker for streaming functions
 
 chat_manager = ChatManager()
 pending_approvals = {} # message_id -> approval_data
