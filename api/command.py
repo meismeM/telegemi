@@ -1,223 +1,340 @@
-# api/command.py
+  # api/command.py
 from time import sleep
 import time # Import time module for sleep
 import google.generativeai as genai
-import re # Import re for answer_exercise
-
-# from .command import excute_command, STREAMING_OUTPUT_SENT # <<< REMOVE THIS LINE
 
 from .auth import is_admin
 from .config import ALLOWED_USERS,IS_DEBUG_MODE,GOOGLE_API_KEY
 from .printLog import send_log
 from .telegram import send_message
 from .textbook_processor import get_textbook_content, search_concept_pages, get_text_from_pages
-from .gemini import generate_content, generate_content_stream
+from .gemini import generate_content, generate_content_stream # Add generate_content_stream to import
 
 admin_auch_info = "You are not the administrator or your administrator ID is set incorrectly!!!"
 debug_mode_info = "Debug mode is not enabled!"
-STREAMING_OUTPUT_SENT = "STREAMING_OUTPUT_SENT" # Marker for streaming functions
 
-chat_manager = ChatManager()
-pending_approvals = {} # message_id -> approval_data
+def help():
+    help_text = "Welcome to Gemini 2.0 flash AI! Interact through text or images and experience insightful answers. Unlock the power of AI-driven communication – every message is a chance for a smarter exchange. Send text or image!\n Experience the power of AI-driven communication through insightful answers, text, or images. \n👾 Features \n Answer any question, even challenging or strange ones. \n ⏩ Generate creative text formats like poems, scripts, code, emails, and more. \n ⏩ Translate languages effortlessly. \n ⏩ Simplify complex concepts with clear explanations. \n ⏩  Perform math and calculations. \n ⏩ Assist with research and creative content generation. \n ⏩ Provide fun with word games, quizzes, and much more!\n ⏩ Send a text or image and unlock smarter exchanges. Don’t forget to join the channels below for more: And most importantly join the channels:  \n [Channel 1](https://t.me/+gOUK4JnBcCtkYWQ8) \n [Channel 2](https://t.me/telegemin). \n ወደ ጀሚኒ 1.5 ፕሮ አርቴፊሻል ኢንተለጀንስ እንኳን ደህና መጡ! ድንቅ 3 ከፍተኛ ተጠቃሚዎች ያሉት ጎግል AI ፣ እኔ እዚህ ስፍር ቁጥር በሌላቸው መንገዶች ልረዳችሁ የምችል የአርቴፊሻል ኢንተለጀንስ ቻት ቦት ነኝ። በአስተዋይ መልሶች፣ በጽሑፍ ወይም በምስሎች የአርቴፊሻል ኢንተለጀንስ የተጎላበተ የግንኙነት ይለማመዱ። \n \n ⏩ ማንኛውንም ጥያቄ፣ ፈታኝ ወይም እንግዳ የሆኑትንም እንኳ መልስ ያግኙ። \n ⏩ እንደ ግጥም፣ ስክሪፕት፣ ኮድ፣ ኢሜይሎች እና ሌሎችም ያሉ የፈጠራ ጽሑፎችን ይፍጠሩ። \n ⏩ ቋንቋዎችን በቀላሉ መተርጎም። \n ⏩ ውስብስብ ጽንሰ-ሐሳቦችን በግልጽ ማብራራት። \n ⏩ የሂሳብ ስሌቶችን መስራት። \n ⏩ በምርምር እና በፈጠራ ይዘት ያላቸው ፅሁፎች። \n ⏩ በቃላት ጨዋታዎች፣ ጥያቄዎች እና በብዙ ተጨማሪ ነገሮች ይዝናኑ!\n ⏩ ጽሑፍ ወይም ምስል ይላኩ እና መልስ ያግኙ። ለተጨማሪ መረጃ ከታች ባሉት ቻናሎች መቀላቀልዎን አይርሱ።"
+    command_list = "/new - Start new chat\n/explain [concept] [textbook_id] - Explain a concept from textbook\n/note [topic] [textbook_id] - Prepare short note on a topic\n/create_questions [concept] [textbook_id] - Generate review questions "
+    result = f"{help_text}\n\n{command_list}"
+    return result
 
-def handle_message(update_data):
-    update = Update(update_data)
-    authorized = is_authorized(update.from_id, update.user_name)
+def list_models():
+    for m in genai.list_models():
+        send_log(str(m))
+        if 'generateContent' in m.supported_generation_methods:
+            send_log(str(m.name))
+    return ""
 
-    # Determine content for initial log before any processing
-    log_initial_content = update.text or update.photo_caption or ("Photo" if update.type == "photo" else "Unknown content type")
-    send_log(f"Event received from @{update.user_name} (ID:`{update.from_id}`)\nContent: {log_initial_content}\nRaw: ```json\n{update_data}```")
-    
-    if not authorized:
-        send_message(update.from_id, "You are not authorized to use this bot.")
-        send_log(f"Unauthorized access attempt by @{update.user_name} (ID:`{update.from_id}`). Content: {log_initial_content}")
+def get_allowed_users():
+    send_log(f"```json\n{ALLOWED_USERS}```")
+    return ""
+
+
+def get_API_key():
+    send_log(f"```json\n{GOOGLE_API_KEY}```")
+    return ""
+
+def speed_test(id):
+    send_message(id, "开始测速")
+    sleep(5)
+    return "测试完成，您的5G速度为：\n**114514B/s**"
+
+def send_message_test(id, command):
+    if not is_admin(id):
+        return admin_auch_info
+    a = command.find(" ")
+    b = command.find(" ", a + 1)
+    if a == -1 or b == -1:
+        return "Command format error"
+    to_id = command[a+1:b]
+    text = command[b+1:]
+    try:
+        send_message(to_id, text)
+    except Exception as e:
+        send_log(f"err:\n{e}")
         return
+    send_log("success")
+    return ""
 
-    if update.type == "command":
-        command_full_text = update.text # Original command text from update (e.g. "explain ..." or "approve ...")
-        
-        # Approval/Denial commands are special cases handled directly here
-        if command_full_text.startswith("approve") and is_admin(update.from_id):
-            try:
-                parts = command_full_text.split(" ", 1)
-                if len(parts) < 2:
-                    send_message(update.from_id, "Invalid approve command. Use: /approve <message_id_to_approve>")
-                    return
-                target_message_id_str = parts[1]
-                target_message_id = int(target_message_id_str) 
-            except (IndexError, ValueError):
-                send_message(update.from_id, "Invalid command format for approve. Use: /approve <message_id_to_approve>")
-                return
+'''def explain_concept(from_id, concept, textbook_id):
+    """Explains a concept, using textbook context with page numbers if available, otherwise general AI."""
+    concept_pages = search_concept_pages(textbook_id, concept) # Use helper function to find relevant pages
+    context_text = ""
+    page_refs = ""
 
-            if target_message_id not in pending_approvals:
-                send_message(update.from_id, f"Message ID {target_message_id} not found in pending approvals or already processed.")
-                return
+    if concept_pages: # If concept found in textbook
+        context_text = get_text_from_pages(textbook_id, concept_pages) # Get text from relevant pages
+        page_refs = f"(Pages: {', '.join(map(str, concept_pages))})" # Create page number reference string
+        prompt = f"Explain the concept of '{concept}' based on the following excerpt from pages {page_refs} of the Grade 9 textbook '{textbook_id}':\n\n---\n{context_text}\n---\n\nProvide a detailed and comprehensive explanation suitable for a Grade 9 student." # More detailed prompt
+    else: # If not found, use general prompt
+        prompt = f"Explain the concept of '{concept}' in detail and comprehensively, suitable for a Grade 9 student." # More detailed general prompt
+        page_refs = "(Textbook page not found)"
 
-            approved_item_data = pending_approvals.pop(target_message_id) # Remove from pending
-            original_user_id = approved_item_data["from_id"]
-            original_user_name = approved_item_data.get("user_name", "UnknownUser") # Get username if stored
+    response = generate_content(prompt)
+    return f"{response}\n\n{page_refs}" # Append page reference to response
+def explain_concept(from_id, concept, textbook_id):
+    """Explains a concept, using textbook context with page numbers and streaming response."""
+    concept_pages = search_concept_pages(textbook_id, concept)
+    context_text = ""
+    page_refs = ""
 
-            try:
-                if "photo_url" in approved_item_data: 
-                    send_log(f"Admin @{update.user_name} (ID:{update.from_id}) approved IMAGE message (OriginalMsgID:{target_message_id}) from user @{original_user_name} (ID:{original_user_id})")
-                    
-                    channel_caption = f"Image from @{original_user_name}:\n{approved_item_data.get('photo_caption', '')}"
-                    send_imageMessage(CHANNEL_ID, channel_caption, approved_item_data["imageID"])
-                    if approved_item_data.get("response_text"): 
-                         send_message(CHANNEL_ID, f"Bot's response to image:\n{approved_item_data['response_text']}")
-                    send_message(original_user_id, "Your image submission and the bot's response have been approved and posted to the channel!")
-                    send_message(update.from_id, f"Image message {target_message_id} from @{original_user_name} approved and posted.")
+    if concept_pages:
+        context_text = get_text_from_pages(textbook_id, concept_pages)
+        page_refs = f"(Pages: {', '.join(map(str, concept_pages))})"
+        prompt = f"Explain the concept of '{concept}' based on the following excerpt from pages {page_refs} of the Grade 9 textbook '{textbook_id}':\n\n---\n{context_text}\n---\n\nProvide a detailed and comprehensive explanation suitable for a Grade 9 student."
+    else:
+        prompt = f"Explain the concept of '{concept}' in detail and comprehensively, suitable for a Grade 9 student."
+        page_refs = "(Textbook page not found)"
 
-                else: # Text message approval
-                    send_log(f"Admin @{update.user_name} (ID:{update.from_id}) approved TEXT message (OriginalMsgID:{target_message_id}) from user @{original_user_name} (ID:{original_user_id})")
-                    
-                    channel_message = f"Query from @{original_user_name}:\n{approved_item_data['text']}\n\nBot Response:\n{approved_item_data['response_text']}"
-                    send_message(CHANNEL_ID, channel_message)
-                    send_message(original_user_id, "Your message and the bot's response have been approved and posted to the channel!")
-                    send_message(update.from_id, f"Text message {target_message_id} from @{original_user_name} approved and posted.")
-            except Exception as e:
-                send_log(f"Error during approval posting for message {target_message_id} (User: {original_user_id}): {e}")
-                send_message(update.from_id, f"An error occurred while posting approved message {target_message_id}: {e}")
-            return 
+    # [!HIGHLIGHT!] Use generate_content_stream instead of generate_content
+    response_stream = generate_content_stream(prompt) # Get a stream of response chunks
 
-        elif command_full_text.startswith("deny") and is_admin(update.from_id):
-            try:
-                parts = command_full_text.split(" ", 1)
-                if len(parts) < 2:
-                    send_message(update.from_id, "Invalid deny command. Use: /deny <message_id_to_deny>")
-                    return
-                target_message_id_str = parts[1]
-                target_message_id = int(target_message_id_str)
-            except (IndexError, ValueError):
-                send_message(update.from_id, "Invalid command format for deny. Use: /deny <message_id_to_deny>")
-                return
+    full_response = "" # Accumulate full response text for page refs and return
+    for chunk_text in response_stream: # Iterate through response chunks
+        if chunk_text: # Check if chunk is not empty (error message might be empty)
+            send_message(from_id, chunk_text) # Send each chunk as a Telegram message
+            full_response += chunk_text # Accumulate for final response
 
-            if target_message_id not in pending_approvals:
-                send_message(update.from_id, f"Message ID {target_message_id} not found for denial or already processed.")
-                return
+    return f"{full_response}\n\n{page_refs}" # Append page reference to the accumulated response'''
 
-            denied_item_data = pending_approvals.pop(target_message_id) # Remove from pending
-            original_user_id = denied_item_data["from_id"]
-            original_user_name = denied_item_data.get("user_name", "UnknownUser")
-            send_log(f"Admin @{update.user_name} (ID:{update.from_id}) DENIED message (OriginalMsgID:{target_message_id}) from user @{original_user_name} (ID:{original_user_id})")
-            send_message(original_user_id, "Your recent submission has been reviewed and was not approved for posting at this time.")
-            send_message(update.from_id, f"Message {target_message_id} from @{original_user_name} denied. User notified.")
-            return 
 
-        # For other commands (not approve/deny)
-        response_from_command_logic = excute_command(update.from_id, command_full_text)
-        
-        if response_from_command_logic == STREAMING_OUTPUT_SENT:
-            send_log(f"Command '{command_full_text}' by @{update.user_name} executed, output streamed directly.")
-        elif response_from_command_logic and response_from_command_logic.strip() != "": 
-            send_message(update.from_id, response_from_command_logic)
-            send_log(f"Command: /{command_full_text} by @{update.user_name}\nReply: {response_from_command_logic}")
-        else: 
-            send_log(f"Command '/{command_full_text}' by @{update.user_name} executed, no direct reply to user or reply was empty/handled by log.")
-    
-    elif update.type == "text":
-        chat_instance = chat_manager.get_chat(update.from_id) 
-        if not chat_instance.chat: # Check if the underlying Gemini chat session is valid
-            send_message(update.from_id, "Sorry, the chat service is currently unavailable. Please try again later.")
-            send_log(f"Chat service unavailable for user @{update.user_name} (ID:{update.from_id}). Gemini chat session is None.")
-            return
 
-        response_stream_generator = chat_instance.send_message(update.text) 
+def explain_concept(from_id, concept, textbook_id):
+    """Explains concept with streaming, using time-based chunk buffering and robust error handling."""
+    concept_pages = search_concept_pages(textbook_id, concept)
+    context_text = ""
+    page_refs = ""
+    prompt = ""
+    full_response = ""  # Initialize full_response
 
-        buffered_stream_message = ""  
-        last_chunk_send_time = time.time() 
-        accumulated_full_response = "" 
-        # Use the original user's message ID for approval tracking and potential reply_to_message_id
-        original_user_message_id = update.message_id 
+    if concept_pages:
+        context_text = get_text_from_pages(textbook_id, concept_pages)
+        page_refs = f"(Pages: {', '.join(map(str, concept_pages))})"
+        prompt = f"Explain the concept of '{concept}' based on the following excerpt from pages {page_refs} of the Grade 9 textbook '{textbook_id}':\n\n---\n{context_text}\n---\n\nProvide a detailed and comprehensive explanation suitable for a Grade 9 student."
+    else:
+        prompt = f"Explain the concept of '{concept}' in detail and comprehensively, suitable for a Grade 9 student."
+        page_refs = "(Textbook page not found)"
 
-        try:
-            for text_chunk in response_stream_generator:
-                if text_chunk:
-                    buffered_stream_message += text_chunk
-                    accumulated_full_response += text_chunk 
-    
-                current_processing_time = time.time()
-                time_since_last_chunk_sent = current_processing_time - last_chunk_send_time
-    
-                if len(buffered_stream_message) >= 3500 or \
-                   (buffered_stream_message.strip() and time_since_last_chunk_sent >= 3): 
-                    if buffered_stream_message.strip():
-                        send_message(update.from_id, buffered_stream_message) #, reply_to_message_id=original_user_message_id if first_chunk else None) - Complicates things
-                    buffered_stream_message = "" 
-                    last_chunk_send_time = current_processing_time
-                    time.sleep(0.2) 
+    response_stream = generate_content_stream(prompt)
 
-        except Exception as e:
-            error_msg_for_user = f"An error occurred while processing your message: {e}"
-            send_log(f"Streaming error for user @{update.user_name} (ID:{update.from_id}) on text '{update.text}': {e}")
-            send_message(update.from_id, error_msg_for_user)
-            return 
-        
-        if buffered_stream_message.strip(): 
-            send_message(update.from_id, buffered_stream_message)
-        
-        # Footer message construction
-        footer_msg_parts = []
-        if chat_instance.history_length > 6 : # Reduced from 10 for more frequent reminder
-            footer_msg_parts.append("Type /new to start a fresh chat.")
-        footer_msg_parts.append("Visit http://studysmart-nu.vercel.app for more tools!")
-        
-        final_footer_message = "\n\n" + " ".join(footer_msg_parts)
-        if final_footer_message.strip(): # Only send if there's actual footer content
-            send_message(update.from_id, final_footer_message)
-            accumulated_full_response += final_footer_message # Add footer to the logged full response
+    buffered_message = ""
+    last_chunk_time = time.time()
 
-        send_log(f"User @{update.user_name}: {update.text}\nFull Bot Response (streamed): {accumulated_full_response}")
-        
-        pending_approvals[original_user_message_id] = {
-            "from_id": update.from_id,
-            "user_name": update.user_name, # Store username for better admin messages
-            "text": update.text, 
-            "response_text": accumulated_full_response, 
-            "timestamp": time.time()
-        }
-        admin_notify_msg = (
-            f"Approval Needed: TEXT from @{update.user_name} (User ID: {update.from_id})\n"
-            f"Original Message ID: {original_user_message_id}\n\n"
-            f"User Query: {update.text}\n\n"
-            f"Bot Reply (first 300 chars): {accumulated_full_response[:300].strip()}...\n\n"
-            f"Reply to THIS admin message with:\n"
-            f"  `/approve {original_user_message_id}`\n"
-            f"  `/deny {original_user_message_id}`"
-        )
-        send_message(ADMIN_ID, admin_notify_msg)
+    try:
+        for chunk_text in response_stream:
+            if chunk_text:
+                buffered_message += chunk_text
+                full_response += chunk_text # [!HIGHLIGHT!] Accumulate full_response here!
 
-    elif update.type == "photo":
-        image_chat_proc = ImageChatManger(update.photo_caption, update.file_id)
-        bot_response_to_image = image_chat_proc.send_image()
-        
-        send_message(update.from_id, bot_response_to_image, reply_to_message_id=update.message_id)
+            current_time = time.time()
+            time_since_last_chunk = current_time - last_chunk_time
 
-        user_photo_file_id = update.file_id 
-        
-        log_msg_text_part = f"User @{update.user_name} (ID:`{update.from_id}`) sent a photo.\nCaption: {update.photo_caption}\nBot Reply: {bot_response_to_image}"
-        # send_image_log can take the caption for the admin log image
-        send_image_log(f"Photo from @{update.user_name}. Caption: {update.photo_caption or '(No caption)'}. Bot reply: {bot_response_to_image[:100]}...", user_photo_file_id)
-        send_log(log_msg_text_part) 
+            if len(buffered_message) > 4000 or time_since_last_chunk >= 5:
+                send_message(from_id, buffered_message)
+                buffered_message = ""
+                last_chunk_time = current_time
 
-        original_user_message_id = update.message_id
-        pending_approvals[original_user_message_id] = {
-            "from_id": update.from_id,
-            "user_name": update.user_name,
-            "photo_caption": update.photo_caption,
-            "response_text": bot_response_to_image,
-            "photo_url": image_chat_proc.tel_photo_url(), # For potential direct use
-            "imageID": user_photo_file_id, 
-            "timestamp": time.time()
-        }
+    except Exception as e:
+        error_message = f"Error during streaming response from Gemini: {e}"
+        send_message(from_id, error_message)
+        return error_message
 
-        admin_notify_caption = (
-            f"Approval Needed: PHOTO from @{update.user_name} (User ID: {update.from_id})\n"
-            f"Original Message ID: {original_user_message_id}\n\n"
-            f"User Caption: {update.photo_caption or '(No caption)'}\n"
-            f"Bot Reply: {bot_response_to_image.strip()}\n\n"
-            f"Reply to THIS admin message with:\n"
-            f"  `/approve {original_user_message_id}`\n"
-            f"  `/deny {original_user_message_id}`"
-        )
-        send_imageMessage(ADMIN_ID, admin_notify_caption, user_photo_file_id) # Send image to admin with approval instructions
+    # Send any remaining buffered text
+    if buffered_message:
+        send_message(from_id, buffered_message)
+
+    return f"{full_response}\n\n{page_refs}" # Append page reference to the accumulated response
+
+def create_questions(from_id, concept, textbook_id):
+    """Generates questions based on a concept from a textbook, using streaming."""
+    concept_pages = search_concept_pages(textbook_id, concept)
+    context_text = ""
+    page_refs = ""
+    prompt = ""  # Initialize prompt
+
+    if concept_pages: # If concept found in textbook
+        context_text = get_text_from_pages(textbook_id, concept_pages)
+        page_refs = f"(Pages: {', '.join(map(str, concept_pages))})"
+        prompt = f"Generate 20-25 review questions about the concept of '{concept}' based on the following excerpt from pages {page_refs} of the Grade 9 textbook '{textbook_id}':\n\n---\n{context_text}\n---\n\nThese questions should be suitable for Grade 9 students to test their understanding of the concept. Include a variety of question types (10 multiple choice, 5 true/false, 5 short answer) if appropriate for the concept. And Include answer after each question" # Modified prompt to generate questions
+    else: # If not found, use general prompt (less textbook-specific questions)
+        prompt = f"Generate 20-25 review questions about the concept of '{concept}'. These questions should be suitable for Grade 9 students and cover the key aspects of this concept. Include a variety of question types (e.g., multiple choice, true/false, short answer) if appropriate. And Include answer after each question" # Modified prompt for general questions
+        page_refs = "(Textbook page not found)"
+
+    response_stream = generate_content_stream(prompt)
+
+    buffered_message = ""
+    last_chunk_time = time.time()
+    full_response = ""  # Initialize full_response
+
+    try:
+        for chunk_text in response_stream:
+            if chunk_text:
+                buffered_message += chunk_text
+                full_response += chunk_text
+
+            current_time = time.time()
+            time_since_last_chunk = current_time - last_chunk_time
+
+            if len(buffered_message) > 4000 or time_since_last_chunk >= 4:
+                send_message(from_id, buffered_message)
+                buffered_message = ""
+                last_chunk_time = current_time
+                time.sleep(0.1)
+
+    except Exception as e:
+        error_message = f"Error during streaming response for create_questions: {e}" # Updated error message
+        send_message(from_id, error_message)
+        return error_message
+
+    # Send any remaining buffered text
+    if buffered_message:
+        send_message(from_id, buffered_message)
+
+    return f"{full_response}\n\n{page_refs}" # Append page reference
+
+def prepare_short_note(from_id, topic, textbook_id):
+    """Prepares a short note on a topic, using textbook context with page numbers if available, otherwise general AI."""
+    topic_pages = search_concept_pages(textbook_id, topic) # Use helper function to find relevant pages
+    context_text = ""
+    page_refs = ""
+
+    if topic_pages: # If topic found in textbook
+        context_text = get_text_from_pages(textbook_id, topic_pages) # Get text from relevant pages
+        page_refs = f"(Pages: {', '.join(map(str, topic_pages))})" # Create page number reference string
+        prompt = f"Prepare a short, concise but comprehensive study note on the topic of '{topic}' based on the Grade 9 textbook '{textbook_id}', drawing from pages {page_refs}. Focus on key points and make it easy to understand for a Grade 9 student. Limit the note to around 5-6 key points if possible.\n\n---\n{context_text}\n---" # More detailed prompt
+    else: # If not found, use general prompt
+        prompt = f"Prepare a short, concise but comprehensive study note on the topic of '{topic}'. Focus on key points and make it easy to understand for a Grade 9 student. Limit the note to around 6 key points if possible." # More detailed general prompt
+        page_refs = "(Textbook page not found)"
+
+    response = generate_content(prompt)
+    return f"{response}\n\n{page_refs}" # Append page reference to response
+
+def answer_exercise(from_id, exercise_query, textbook_id):
+    """Answers an exercise from a textbook."""
+    textbook_content = get_textbook_content(textbook_id)
+    if not textbook_content:
+        return f"Textbook with ID '{textbook_id}' not found."
+
+    import re
+    exercise_regex = re.compile(rf"(Review Questions)?\s*(Part [IVX]+:)?\s*(Question|exercise)\s*([\d.]+)", re.IGNORECASE)
+
+    best_match_start = -1
+    best_match_end = -1
+    context_text = "Exercise not found."
+
+    query_parts = exercise_query.lower().split()
+
+    print(f"--- Searching for exercise: '{exercise_query}' ---") # Log the query
+
+    found_matches = [] # List to store all matches for logging
+
+    for match in exercise_regex.finditer(textbook_content.lower()):
+        full_match = match.group(0)
+        part = match.group(2)
+        question_type = match.group(3)
+        question_number = match.group(4)
+
+        match_score = 0
+        for query_part in query_parts:
+            if query_part in full_match.lower():
+                match_score += 1
+
+        found_matches.append({ # Store match details for logging
+            "full_match": full_match,
+            "part": part,
+            "question_type": question_type,
+            "question_number": question_number,
+            "score": match_score
+        })
+
+        if best_match_start == -1 or match_score > best_match_score:
+            best_match_start = match.start()
+            best_match_end = match.end()
+            best_match_score = match_score
+
+    # [!HIGHLIGHT!] Log all found matches (even if no "best match" is good enough)
+    print("--- All Regex Matches Found (with scores): ---")
+    for match_info in found_matches:
+        print(f"  Match: '{match_info['full_match']}', Score: {match_info['score']}, Part: '{match_info['part']}', Type: '{match_info['question_type']}', Number: '{match_info['question_number']}'")
+
+    if best_match_start != -1 and best_match_score > 0 : # Added score check to ensure at least some word matched
+        context_start = max(0, best_match_start - 500)
+        context_end = min(len(textbook_content), best_match_end + 1000)
+        context_text = textbook_content[context_start:context_end]
+        print(f"--- Best Match Found: '{context_text[:100]}...' (score: {best_match_score}) ---") # Log best match
+    else:
+        print("--- No Suitable Exercise Match Found ---") # Log if no good match
+        return f"Exercise '{exercise_query}' not found in textbook '{textbook_id}'."
+
+    prompt = f"Based on the following excerpt from a Grade 9 economics textbook, answer the review question:\n\n---\n{context_text}\n---\n\nSpecifically, answer exercise/question: '{exercise_query}'."
+    response = generate_content(prompt)
+    return response
+
+def excute_command(from_id, command):
+    if command == "start" or command == "help":
+        return help()
+    elif command == "get_my_info":
+        result = f"your telegram id is: `{from_id}`"
+        return result
+    elif command == "5g_test":
+        return speed_test(from_id)
+    elif command.startswith("send_message"):
+        return send_message_test(from_id, command)
+    elif command in ["get_allowed_users", "get_api_key", "list_models"]:
+        if not is_admin(from_id):
+            return admin_auch_info
+        if IS_DEBUG_MODE == "0":
+            return debug_mode_info
+        if command == "get_allowed_users":
+            return get_allowed_users()
+        elif command == "get_api_key":
+            return get_API_key()
+        elif command == "list_models":
+            return list_models()
+
+    # [!HIGHLIGHT!] Modified command handling for explain, note, answer
+    elif command.startswith("explain"):
+        parts = command.split(" ", 1) # Split only once at the first space
+        if len(parts) == 2: # Now we expect 2 parts: command and the rest
+            command_name, concept_and_textbook_id = parts # The rest is concept + textbook_id
+            concept_parts = concept_and_textbook_id.split() # Split the rest by spaces again
+            if concept_parts: # Check if there's anything after 'explain'
+                textbook_id = concept_parts[-1] # Assume textbook_id is the last word
+                concept = " ".join(concept_parts[:-1]) # Join the rest as concept phrase
+                return explain_concept(from_id, concept, textbook_id)
+            else:
+                return "Invalid command format. Use: /explain [concept] [textbook_id]"
+        else:
+            return "Invalid command format. Use: /explain [concept] [textbook_id]"
+
+    elif command.startswith("note"):
+        parts = command.split(" ", 1) # Split only once at the first space
+        if len(parts) == 2:
+            command_name, topic_and_textbook_id = parts
+            topic_parts = topic_and_textbook_id.split()
+            if topic_parts:
+                textbook_id = topic_parts[-1]
+                topic = " ".join(topic_parts[:-1])
+                return prepare_short_note(from_id, topic, textbook_id)
+            else:
+                return "Invalid command format. Use: /note [topic] [textbook_id]"
+        else:
+            return "Invalid command format. Use: /note [topic] [textbook_id]"
+     
+    elif command.startswith("create_questions"): # /create_questions concept textbook_id
+        parts = command.split(" ", 1) # Split only once at the first space
+        if len(parts) == 2: # Now we expect 2 parts: command and the rest
+            command_name, concept_and_textbook_id = parts # The rest is concept + textbook_id
+            concept_parts = concept_and_textbook_id.split() # Split the rest by spaces again
+            if concept_parts: # Check if there's anything after 'explain'
+                textbook_id = concept_parts[-1] # Assume textbook_id is the last word
+                concept = " ".join(concept_parts[:-1]) # Join the rest as concept phrase
+                return create_questions(from_id, concept, textbook_id) # [!CORRECTED!] - Call create_questions function
+            else:
+                return "Invalid command format. Use: /create_questions [concept] [textbook_id]"
+        else:
+            return "Invalid command format. Use: /create_questions [concept] [textbook_id]"
+    else:
+        result = "Invalid command, use /help for help"
+        return result 
