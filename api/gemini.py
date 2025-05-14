@@ -255,7 +255,7 @@ class ChatConversation:
                     
                     if candidate.finish_reason and str(candidate.finish_reason).upper() not in ["STOP", "UNSPECIFIED", "MAX_TOKENS", "NULL"]:
                         finish_reason_str = str(candidate.finish_reason).upper()
-                        send_log(f"Gemini Chat Stream Finish Reason '{finish_reason_str}' for prompt '{prompt[:100]}...'")
+                        #send_log(f"Gemini Chat Stream Finish Reason '{finish_reason_str}' for prompt '{prompt[:100]}...'")
                         if not chunk_text and finish_reason_str != "SAFETY": # If no text and not already a safety message
                             yield f"\n\n[Chat stream affected: {candidate.finish_reason}]"
                         if finish_reason_str == "SAFETY":
