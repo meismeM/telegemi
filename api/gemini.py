@@ -3,6 +3,7 @@ from io import BytesIO
 import os # For GOOGLE_API_KEY check if needed, though config.py handles it primarily
 
 import google.generativeai as genai
+from google.generativeai.types import BrokenResponseError
 import PIL.Image
 
 from .config import GOOGLE_API_KEY, generation_config, safety_settings
@@ -274,9 +275,23 @@ class ChatConversation:
                     # self.chat = model_usual.start_chat(history=[])
                     # self.user_prompt_history = []
                     break
+        except BrokenResponseError as bre:
+            send_log(f"Gemini ChatConversation.send_message BROKEN_RESPONSE_ERROR for prompt '{prompt[:100]}...': {bre}")
+            try:
+                self.chat.rewind()
+                # If rewind is successful, and user_prompt_history was tracking the prompt that led to this, remove it.
+                # Assuming the prompt that caused the error was the last one added to user_prompt_history.
+                if self.user_prompt_history and self.user_prompt_history[-1] == prompt:
+                    self.user_prompt_history.pop()
+                send_log(f"Chat history rewound successfully after BrokenResponseError for prompt '{prompt[:100]}...'.")
+                yield "A chat streaming error occurred. I've reset the last part of our conversation. Please try sending your message again."
+            except Exception as rewind_e:
+                send_log(f"Failed to rewind chat history after BrokenResponseError for prompt '{prompt[:100]}...': {rewind_e}. Chat might be unstable.")
+                yield "A critical chat streaming error occurred, and I couldn't fully recover the conversation. You might need to start a new chat with /new."
+            return
         except Exception as e:
-            error_message = f"Chat streaming error!\n{repr(e)}"
-            send_log(f"Gemini ChatConversation.send_message EXCEPTION for prompt '{prompt[:100]}...': {error_message}")
+            error_message = f"Chat streaming encountered an unexpected issue: {repr(e)}"
+            send_log(f"Gemini ChatConversation.send_message UNEXPECTED_EXCEPTION for prompt '{prompt[:100]}...': {error_message}")
             yield error_message
             # Optionally reset chat on severe errors to prevent broken state
             # if model_usual: self.chat = model_usual.start_chat(history=[])
