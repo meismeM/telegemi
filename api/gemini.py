@@ -21,7 +21,7 @@ else:
 
 
 # Use model names as originally specified by the user
-MODEL_NAME_DEFAULT = "gemini-2.0-flash" # User's original model
+MODEL_NAME_DEFAULT = "gemini-1.5-flash" # User's original model
 # MODEL_NAME_DEFAULT = "gemini-1.5-flash-latest" # Alternative modern option
 
 model_usual = None
